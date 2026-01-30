@@ -39,7 +39,7 @@ const getApiUrl = () => {
     }
 
     console.error('[ApiConfig] Could not auto-detect server IP. Backend requests will fail on physical device.');
-    console.error('[ApiConfig] Please set BACKEND_API_URL in .env file (e.g., BACKEND_API_URL=http://192.168.1.4:3000/api)');
+    console.error('[ApiConfig] Please set EXPO_PUBLIC_BACKEND_URL in .env file (e.g., EXPO_PUBLIC_BACKEND_URL=http://192.168.1.4:3000/api)');
     console.error('[ApiConfig] Your Metro bundler IP is shown in the Expo start output (e.g., exp://192.168.1.4:8081)');
   }
 
