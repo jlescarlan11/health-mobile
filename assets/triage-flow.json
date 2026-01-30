@@ -1,0 +1,213 @@
+{
+  "version": "1.0.0",
+  "name": "WHO-Aligned Killer Questions Triage",
+  "description": "Deterministic decision tree for rapid identification of life-threatening conditions and appropriate care level recommendation.",
+  "startNode": "q_emergency_signs",
+  "nodes": {
+    "q_emergency_signs": {
+      "id": "q_emergency_signs",
+      "type": "question",
+      "text": "Are any of these emergency signs present: Unconsciousness, gasping for air, choking, or severe bleeding that won't stop?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "o_emergency_critical"
+        },
+        {
+          "label": "No",
+          "next": "q_cardiac_stroke"
+        }
+      ]
+    },
+    "q_cardiac_stroke": {
+      "id": "q_cardiac_stroke",
+      "type": "question",
+      "text": "Is the person experiencing severe chest pain/pressure, or sudden weakness/numbness on one side of the face or body?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "o_emergency_cardiac"
+        },
+        {
+          "label": "No",
+          "next": "q_mental_crisis"
+        }
+      ]
+    },
+    "q_mental_crisis": {
+      "id": "q_mental_crisis",
+      "type": "question",
+      "text": "Are there thoughts of self-harm, hurting others, or signs of extreme mental distress/agitation?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "o_emergency_crisis"
+        },
+        {
+          "label": "No",
+          "next": "q_high_urgency"
+        }
+      ]
+    },
+    "q_high_urgency": {
+      "id": "q_high_urgency",
+      "type": "question",
+      "text": "Is there a very high fever with a stiff neck, severe abdominal pain, or the 'worst headache' of their life?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "o_hospital_urgent"
+        },
+        {
+          "label": "No",
+          "next": "q_tropical_check"
+        }
+      ]
+    },
+    "q_tropical_check": {
+      "id": "q_tropical_check",
+      "type": "question",
+      "text": "In the last 14 days, have you had a fever or been exposed to floodwaters or heavy rain?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "q_tropical_signs"
+        },
+        {
+          "label": "No",
+          "next": "q_moderate_symptoms"
+        }
+      ]
+    },
+    "q_tropical_signs": {
+      "id": "q_tropical_signs",
+      "type": "question",
+      "text": "Are there signs of tropical illness: muscle/joint pain, pain behind eyes, or a rash?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "o_dengue_warning"
+        },
+        {
+          "label": "No",
+          "next": "q_moderate_symptoms"
+        }
+      ]
+    },
+    "o_dengue_warning": {
+      "id": "o_dengue_warning",
+      "type": "outcome",
+      "recommendation": {
+        "level": "hospital",
+        "reasoning": "Fever combined with tropical symptoms (rash, joint pain, or pain behind eyes) suggests suspected Dengue. This requires urgent clinical assessment to monitor for progression.",
+        "actions": [
+          "Seek medical evaluation at the Bicol Health Center or a Hospital TODAY.",
+          "DOH HYDRATION PROTOCOL: Drink at least 2 liters of fluids daily (ORS, water, fruit juice, or soup).",
+          "AVOID dark-colored foods and drinks (e.g., chocolate, cola, beets) that can mimic bleeding in vomit or stool.",
+          "Inform the healthcare provider of the fever onset and specific symptoms.",
+          "CRITICAL: Monitor for warning signs: severe abdominal pain, persistent vomiting, or bleeding (gums/nose).",
+          "DO NOT take Aspirin, Ibuprofen, or Mefenamic Acid; use only Paracetamol for fever."
+        ]
+      }
+    },
+    "q_moderate_symptoms": {
+      "id": "q_moderate_symptoms",
+      "type": "question",
+      "text": "Are there persistent symptoms like a cough for >2 weeks, a fever that won't break, or a minor injury that needs professional cleaning?",
+      "options": [
+        {
+          "label": "Yes",
+          "next": "o_health_center_moderate"
+        },
+        {
+          "label": "No",
+          "next": "o_self_care"
+        }
+      ]
+    },
+    "o_emergency_critical": {
+      "id": "o_emergency_critical",
+      "type": "outcome",
+      "recommendation": {
+        "level": "emergency",
+        "reasoning": "Critical life-threatening signs (airway, breathing, or circulation) detected.",
+        "actions": [
+          "Call 911 or local emergency numbers immediately.",
+          "Check airway and breathing while waiting for help.",
+          "Apply firm pressure to any severe bleeding sites.",
+          "Do not leave the person alone."
+        ]
+      }
+    },
+    "o_emergency_cardiac": {
+      "id": "o_emergency_cardiac",
+      "type": "outcome",
+      "recommendation": {
+        "level": "emergency",
+        "reasoning": "Symptoms highly suggestive of a heart attack or stroke require immediate intervention.",
+        "actions": [
+          "Transport the person to the nearest emergency department immediately.",
+          "Note the exact time symptoms started.",
+          "Do not allow the person to drive themselves.",
+          "Keep the person calm and seated or lying down."
+        ]
+      }
+    },
+    "o_emergency_crisis": {
+      "id": "o_emergency_crisis",
+      "type": "outcome",
+      "recommendation": {
+        "level": "emergency",
+        "reasoning": "Immediate mental health intervention required to ensure safety.",
+        "actions": [
+          "Seek emergency psychiatric help or go to the nearest ER.",
+          "Stay with the person in a safe environment.",
+          "Remove access to any items that could cause harm.",
+          "Call a crisis hotline if available."
+        ]
+      }
+    },
+    "o_hospital_urgent": {
+      "id": "o_hospital_urgent",
+      "type": "outcome",
+      "recommendation": {
+        "level": "hospital",
+        "reasoning": "Symptoms indicate a potentially serious condition that requires diagnostic testing available at a hospital.",
+        "actions": [
+          "Go to a hospital emergency department or urgent care center today.",
+          "DOH HYDRATION: Ensure adequate fluid intake (water, ORS, fruit juice) while seeking care.",
+          "Monitor for any worsening of symptoms.",
+          "Do not wait for symptoms to 'go away' on their own."
+        ]
+      }
+    },
+    "o_health_center_moderate": {
+      "id": "o_health_center_moderate",
+      "type": "outcome",
+      "recommendation": {
+        "level": "health-center",
+        "reasoning": "Symptoms are not immediately life-threatening but require professional evaluation at a primary care facility.",
+        "actions": [
+          "Visit your nearest Health Center or clinic during operating hours.",
+          "HYDRATION: Drink at least 1.5 to 2 liters of water or ORS daily if you have a fever.",
+          "Bring any current medications or health records.",
+          "Follow up if symptoms do not improve within 48 hours."
+        ]
+      }
+    },
+    "o_self_care": {
+      "id": "o_self_care",
+      "type": "outcome",
+      "recommendation": {
+        "level": "self-care",
+        "reasoning": "No high-risk red flags detected. Symptoms may be managed with rest and monitoring.",
+        "actions": [
+          "Rest and stay hydrated according to DOH standards (water, fruit juice, or ORS).",
+          "Monitor symptoms closely for any changes or new red flags.",
+          "Re-evaluate using the assistant if symptoms worsen.",
+          "Use over-the-counter remedies as appropriate for age and history."
+        ]
+      }
+    }
+  }
+}
