@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StyleSheet, View } from "react-native";
 import { Provider as PaperProvider } from "react-native-paper";
@@ -14,11 +14,13 @@ import {
   SafetyRecheckModal,
   LoadingScreen,
 } from "../src/components/common";
-import { setOfflineStatus, setLastSync } from "../src/store/offlineSlice";
-import { syncFacilities, getLastSyncTime } from "../src/services/syncService";
+import { setOfflineStatus, setLastSync, syncCompleted } from "../src/store/offlineSlice";
+import { updateProfile } from "../src/store/profileSlice";
+import { syncFacilities, syncClinicalHistory, getLastSyncTime } from "../src/services/syncService";
+import { loadStoredAuthToken } from "../src/store/authSlice";
 import { initDatabase } from "../src/services/database";
 import { getScaledTheme } from "../src/theme";
-import { useAppSelector, useAdaptiveUI } from "../src/hooks";
+import { useAppSelector, useAdaptiveUI, useAppDispatch } from "../src/hooks";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -26,9 +28,33 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 function RootLayoutContent() {
+  const dispatch = useAppDispatch();
   const isHighRisk = useAppSelector((state) => state.navigation.isHighRisk);
   const { scaleFactor, isPWDMode, layoutPadding } = useAdaptiveUI();
   const [safetyModalVisible, setSafetyModalVisible] = useState(false);
+  const authToken = useAppSelector((state) => state.auth.token);
+  const authUser = useAppSelector((state) => state.auth.user);
+  const profile = useAppSelector((state) => state.profile);
+  const isSignedIn = Boolean(authToken);
+  const authTokenRef = useRef(authToken);
+  const isSignedInOnMount = useRef(isSignedIn);
+
+  useEffect(() => {
+    authTokenRef.current = authToken;
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken) {
+      return;
+    }
+    syncClinicalHistory().catch((err) =>
+      console.log("[Sync] Clinical history sync triggered after authentication:", err),
+    );
+  }, [authToken]);
+
+  useEffect(() => {
+    dispatch(loadStoredAuthToken());
+  }, [dispatch]);
 
   const scaledTheme = useMemo(() => {
     const baseTheme = getScaledTheme(scaleFactor);
@@ -50,6 +76,25 @@ function RootLayoutContent() {
   }, [scaleFactor, isPWDMode]);
 
   useEffect(() => {
+    if (!authUser) {
+      return;
+    }
+
+    const firstName = authUser.firstName?.trim();
+    const lastName = authUser.lastName?.trim();
+    const derivedFullName = firstName && lastName ? `${firstName} ${lastName}` : null;
+    const authDob = authUser.dateOfBirth ?? null;
+
+    if (derivedFullName && profile.fullName !== derivedFullName) {
+      dispatch(updateProfile({ fullName: derivedFullName }));
+    }
+
+    if (authDob && profile.dob !== authDob) {
+      dispatch(updateProfile({ dob: authDob }));
+    }
+  }, [authUser, profile.fullName, profile.dob, dispatch]);
+
+  useEffect(() => {
     // Check for high risk status on mount
     if (isHighRisk) {
       setSafetyModalVisible(true);
@@ -67,9 +112,22 @@ function RootLayoutContent() {
         }
 
         // Initial Sync
-        syncFacilities().catch((err) =>
-          console.log("Initial sync failed (likely offline or error):", err),
-        );
+        syncFacilities()
+          .then((synced) => {
+            if (synced) {
+              store.dispatch(syncCompleted());
+            }
+          })
+          .catch((err) =>
+            console.log("Initial facilities sync failed (likely offline or error):", err),
+          );
+        if (isSignedInOnMount.current) {
+          syncClinicalHistory().catch((err) =>
+            console.log("Initial clinical history sync failed (likely offline or error):", err),
+          );
+        } else {
+          console.log("[Sync] Skipping initial clinical history sync until signed in.");
+        }
       } catch (err) {
         console.error("Startup initialization failed:", err);
       } finally {
@@ -80,8 +138,27 @@ function RootLayoutContent() {
     startup();
 
     // Network Listener
+    let wasOffline = false;
     const unsubscribe = NetInfo.addEventListener((state) => {
-      store.dispatch(setOfflineStatus(!state.isConnected));
+      const isConnected = !!state.isConnected;
+      store.dispatch(setOfflineStatus(!isConnected));
+
+      if (isConnected && wasOffline) {
+        console.log("[Sync] Connection restored, triggering background sync...");
+        syncFacilities()
+          .then((synced) => {
+            if (synced) {
+              store.dispatch(syncCompleted());
+            }
+          })
+          .catch(() => {});
+        if (authTokenRef.current) {
+          syncClinicalHistory().catch(() => {});
+        } else {
+          console.log("[Sync] Skipping clinical history sync after reconnection until signed in.");
+        }
+      }
+      wasOffline = !isConnected;
     });
 
     return () => {

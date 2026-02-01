@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import * as DB from '../services/database';
-import { RootState } from './index';
+import type { RootState } from './index';
+import { syncClinicalHistory } from '../services/syncService';
 
 export interface LatestAssessment {
   id: string;
@@ -93,6 +94,16 @@ export const saveClinicalNote = createAsyncThunk(
 
       // Update Redux state via reducer
       dispatch(updateLatestAssessment(record));
+
+      // Trigger background sync if online and authenticated
+      if (!state.offline.isOffline && Boolean(state.auth.token)) {
+        syncClinicalHistory().catch((err) =>
+          console.log('[Sync] Background history sync triggered after save:', err),
+        );
+      } else if (!state.auth.token) {
+        console.log('[Sync] Skipping background history sync until signed in.');
+      }
+
       return record;
     } catch (error) {
       console.error('Failed to persist clinical history to database:', error);
@@ -143,7 +154,7 @@ export const {
 } = offlineSlice.actions;
 
 // Selectors
-export const selectLatestClinicalNote = (state: { offline: OfflineState }) =>
+export const selectLatestClinicalNote = (state: RootState) =>
   state.offline.latestAssessment;
 
 export default offlineSlice.reducer;

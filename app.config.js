@@ -11,7 +11,6 @@ const baseConfig = require("./app.json");
 const envExtras = {
   backendUrl: process.env.EXPO_PUBLIC_BACKEND_URL,
   apiUrl: process.env.EXPO_PUBLIC_BACKEND_URL,
-  geminiApiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY,
   firebaseApiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   firebaseAuthDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
   firebaseProjectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,

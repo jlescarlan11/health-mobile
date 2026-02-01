@@ -4,10 +4,10 @@ import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { useTheme } from 'react-native-paper';
-import { RootState } from '../../store';
+import type { RootState } from '../../store';
 
 export const OfflineBanner = () => {
-  const isOffline = useSelector((state: RootState) => state.offline.isOffline);
+  const isOffline = useSelector((state: RootState) => state.offline?.isOffline ?? false);
   const insets = useSafeAreaInsets();
   const theme = useTheme();
 

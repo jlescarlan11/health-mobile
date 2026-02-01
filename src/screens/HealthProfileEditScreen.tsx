@@ -8,32 +8,37 @@ import { StandardHeader } from '../components/common/StandardHeader';
 import { useAppSelector, useAppDispatch } from '../hooks/reduxHooks';
 import { updateProfile } from '../store/profileSlice';
 import { Button } from '../components/common/Button';
+import { SignInRequired, LoadingScreen, ScreenSafeArea } from '../components/common';
 import { Text } from '../components';
-import { ScreenSafeArea } from '../components/common';
+import { useAuthStatus } from '../hooks';
 import { theme as appTheme } from '../theme';
 
-export const HealthProfileEditScreen = () => {
+const HealthProfileEditContent = () => {
   const theme = useTheme();
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const profile = useAppSelector((state) => state.profile);
+  const { derivedFullName, authDob, hasAuthName, hasAuthDob } = useAuthStatus();
   const insets = useSafeAreaInsets();
   const themeSpacing = (theme as typeof appTheme).spacing ?? appTheme.spacing;
   const baseBottomPadding = themeSpacing.lg ?? 16;
   const scrollBottomPadding = baseBottomPadding * 4;
   const snackbarBottomSpacing = insets.bottom + (themeSpacing.sm ?? 8);
 
-  const initialDobDigits = useMemo(() => convertIsoDateToDigits(profile.dob), [profile.dob]);
-  const [fullName, setFullName] = useState(profile.fullName || '');
-  const [dobDigits, setDobDigits] = useState(initialDobDigits);
-  const displayDob = useMemo(() => formatMmDisplay(dobDigits), [dobDigits]);
+  const displayFullName = derivedFullName ?? '—';
+  const displayDob = hasAuthDob ? formatIsoDateForDisplay(authDob) : '—';
+  const canSaveAuthFields = hasAuthName && hasAuthDob;
+  const fullNameHelperText = hasAuthName
+    ? 'Full name is managed by your signed-in account.'
+    : 'Provide both first and last names in your account to proceed.';
+  const dobHelperText = hasAuthDob
+    ? 'Date of birth is pulled from your account details.'
+    : 'Add your date of birth to your account before saving.';
   const [sex, setSex] = useState(profile.sex || '');
   const [bloodType, setBloodType] = useState(profile.bloodType || '');
   const [philHealthId, setPhilHealthId] = useState(profile.philHealthId || '');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
-  const [dobError, setDobError] = useState('');
   const [sexError, setSexError] = useState('');
-  const [dobTouched, setDobTouched] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const statusResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [chronicConditionsInput, setChronicConditionsInput] = useState(
@@ -44,12 +49,7 @@ export const HealthProfileEditScreen = () => {
   const [familyHistoryInput, setFamilyHistoryInput] = useState(profile.familyHistory || '');
 
   const hasUnsavedChanges = useMemo(() => {
-    const currentDob = normalizeDigitsToIso(dobDigits) || null;
-    const initialDob = profile.dob || null;
-
     return (
-      fullName !== (profile.fullName || '') ||
-      currentDob !== initialDob ||
       sex !== (profile.sex || '') ||
       bloodType !== (profile.bloodType || '') ||
       philHealthId !== (profile.philHealthId || '') ||
@@ -59,8 +59,6 @@ export const HealthProfileEditScreen = () => {
       familyHistoryInput !== (profile.familyHistory || '')
     );
   }, [
-    fullName,
-    dobDigits,
     sex,
     bloodType,
     philHealthId,
@@ -68,7 +66,13 @@ export const HealthProfileEditScreen = () => {
     allergiesInput,
     surgicalHistoryInput,
     familyHistoryInput,
-    profile,
+    profile.sex,
+    profile.bloodType,
+    profile.philHealthId,
+    profile.chronicConditions,
+    profile.allergies,
+    profile.surgicalHistory,
+    profile.familyHistory,
   ]);
 
   useEffect(() => {
@@ -124,14 +128,9 @@ export const HealthProfileEditScreen = () => {
   );
 
   useEffect(() => {
-    setFullName(profile.fullName || '');
-    const digitsFromProfile = convertIsoDateToDigits(profile.dob);
-    setDobDigits(digitsFromProfile);
     setSex(profile.sex || '');
     setBloodType(profile.bloodType || '');
     setPhilHealthId(profile.philHealthId || '');
-    setDobError('');
-    setDobTouched(false);
     setChronicConditionsInput(joinList(profile.chronicConditions));
     setAllergiesInput(joinList(profile.allergies));
     setSurgicalHistoryInput(profile.surgicalHistory || '');
@@ -147,30 +146,25 @@ export const HealthProfileEditScreen = () => {
   }, []);
 
   const handleSave = () => {
-    setDobTouched(true);
-    const dobErr = getDobError(dobDigits);
-    setDobError(dobErr);
+    if (!canSaveAuthFields) {
+      Alert.alert(
+        'Incomplete account data',
+        'Your account needs a first name, last name, and date of birth before you can save your profile.',
+      );
+      return;
+    }
 
     if (!sex) {
       setSexError('Please select your sex.');
-    } else {
-      setSexError('');
-    }
-
-    if (dobErr || !sex) {
       return;
     }
 
-    if (dobDigits.length === 8 && !normalizeDigitsToIso(dobDigits)) {
-      setDobError('Enter a valid past date (MM/DD/YYYY).');
-      return;
-    }
-
+    setSexError('');
     setSaveState('saving');
     dispatch(
       updateProfile({
-        fullName: fullName.trim() || null,
-        dob: (dobDigits.length === 8 ? normalizeDigitsToIso(dobDigits) : '') || null,
+        fullName: derivedFullName ?? null,
+        dob: authDob ?? null,
         sex: sex || null,
         bloodType: bloodType.trim() || null,
         philHealthId: philHealthId.trim() || null,
@@ -187,24 +181,6 @@ export const HealthProfileEditScreen = () => {
     statusResetRef.current = setTimeout(() => {
       navigation.goBack();
     }, 1500);
-  };
-
-  const handleDobBlur = () => {
-    setDobTouched(true);
-    setDobError(getDobError(dobDigits));
-  };
-
-  const handleDobChange = (value: string) => {
-    const digitsOnly = value.replace(/\D/g, '').slice(0, 8);
-    setDobDigits(digitsOnly);
-
-    if (digitsOnly.length === 8) {
-      setDobError(getDobError(digitsOnly));
-    } else if (dobTouched && digitsOnly.length > 0) {
-      setDobError('Complete the date as MM/DD/YYYY.');
-    } else if (dobError) {
-      setDobError('');
-    }
   };
 
   const onDismissSnackbar = () => setSnackbarVisible(false);
@@ -230,9 +206,8 @@ export const HealthProfileEditScreen = () => {
             <TextInput
               mode="outlined"
               label="Full name"
-              placeholder="e.g. Juan Dela Cruz"
-              value={fullName}
-              onChangeText={setFullName}
+              value={displayFullName}
+              editable={false}
               style={styles.input}
               outlineStyle={[styles.inputOutline, { borderColor: theme.colors.outline }]}
               cursorColor={theme.colors.primary}
@@ -240,28 +215,26 @@ export const HealthProfileEditScreen = () => {
               dense
               accessibilityHint="Use the name that appears on your IDs so clinics can recognize you"
             />
+            <HelperText type={hasAuthName ? 'info' : 'error'} visible style={styles.helperText}>
+              {fullNameHelperText}
+            </HelperText>
           </View>
 
           <View style={styles.field}>
             <TextInput
               mode="outlined"
               label="Date of birth"
-              placeholder="MM/DD/YYYY"
               value={displayDob}
-              onChangeText={handleDobChange}
+              editable={false}
               style={styles.input}
               outlineStyle={[styles.inputOutline, { borderColor: theme.colors.outline }]}
               cursorColor={theme.colors.primary}
               selectionColor={theme.colors.primary + '40'}
               dense
-              error={!!dobError}
-              keyboardType="number-pad"
-              maxLength={10}
-              onBlur={handleDobBlur}
-              accessibilityHint="Provide the month, day, and year of your birth to match your profile"
+              accessibilityHint="Your date of birth is synced from your account and cannot be changed here"
             />
-            <HelperText type="error" visible={!!dobError} style={styles.helperText}>
-              {dobError}
+            <HelperText type={hasAuthDob ? 'info' : 'error'} visible style={styles.helperText}>
+              {dobHelperText}
             </HelperText>
           </View>
 
@@ -415,10 +388,15 @@ export const HealthProfileEditScreen = () => {
             variant="primary"
             onPress={handleSave}
             loading={isSaving}
-            disabled={isSaving}
+            disabled={isSaving || !canSaveAuthFields}
             accessibilityHint="Save your updated health record details"
             style={styles.saveButton}
           />
+          {!canSaveAuthFields && (
+            <Text style={[styles.dependencyHint, { color: theme.colors.error }]}>
+              Full name and date of birth must come from your account before you can save.
+            </Text>
+          )}
         </View>
       </KeyboardAwareScrollView>
 
@@ -483,6 +461,21 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 8,
   },
+  dependencyHint: {
+    marginTop: 12,
+    textAlign: 'center',
+    fontSize: 12,
+  },
+  signInRequiredWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  loadingWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
   buttonArea: {
     marginTop: 30,
     marginBottom: 20,
@@ -504,89 +497,43 @@ const styles = StyleSheet.create({
   },
 });
 
-function formatMmDisplay(digits: string): string {
-  const month = digits.slice(0, 2);
-  const day = digits.slice(2, 4);
-  const year = digits.slice(4, 8);
-  let formatted = '';
+export const HealthProfileEditScreen = () => {
+  const { isSignedIn, isSessionLoaded } = useAuthStatus();
+  const theme = useTheme();
 
-  if (month) {
-    formatted += month;
-    if (digits.length > 2) {
-      formatted += '/';
-    }
+  if (!isSessionLoaded) {
+    return (
+      <ScreenSafeArea
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['left', 'right', 'bottom']}
+      >
+        <StandardHeader title="Edit Health Profile" showBackButton />
+        <View style={styles.loadingWrapper}>
+          <LoadingScreen />
+        </View>
+      </ScreenSafeArea>
+    );
   }
 
-  if (day) {
-    formatted += day;
-    if (digits.length > 4) {
-      formatted += '/';
-    }
+  if (!isSignedIn) {
+    return (
+      <ScreenSafeArea
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['left', 'right', 'bottom']}
+      >
+        <StandardHeader title="Edit Health Profile" showBackButton />
+        <View style={styles.signInRequiredWrapper}>
+          <SignInRequired
+            title="Sign in to edit your profile"
+            description="Sign in to manage your personal health information and unlock your Health ID."
+          />
+        </View>
+      </ScreenSafeArea>
+    );
   }
 
-  if (year) {
-    formatted += year;
-  }
-
-  return formatted;
-}
-
-function normalizeDigitsToIso(digits: string): string | null {
-  if (digits.length !== 8) {
-    return null;
-  }
-
-  const month = Number(digits.slice(0, 2));
-  const day = Number(digits.slice(2, 4));
-  const year = Number(digits.slice(4, 8));
-  const candidate = new Date(year, month - 1, day);
-
-  if (
-    candidate.getFullYear() !== year ||
-    candidate.getMonth() + 1 !== month ||
-    candidate.getDate() !== day
-  ) {
-    return null;
-  }
-
-  if (candidate > new Date()) {
-    return null;
-  }
-
-  const paddedMonth = String(month).padStart(2, '0');
-  const paddedDay = String(day).padStart(2, '0');
-
-  return `${year}-${paddedMonth}-${paddedDay}`;
-}
-
-function convertIsoDateToDigits(isoDate?: string | null): string {
-  if (!isoDate) {
-    return '';
-  }
-
-  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) {
-    return '';
-  }
-
-  return `${match[2]}${match[3]}${match[1]}`;
-}
-
-function getDobError(digits: string): string {
-  if (!digits) {
-    return '';
-  }
-
-  if (digits.length !== 8) {
-    return 'Complete the date as MM/DD/YYYY.';
-  }
-
-  if (!normalizeDigitsToIso(digits)) {
-    return 'Enter a valid past date (MM/DD/YYYY).';
-  }
-
-  return '';
-}
+  return <HealthProfileEditContent />;
+};
 
 function joinList(list?: string[] | null): string {
   if (!list || list.length === 0) {
@@ -601,4 +548,19 @@ function parseList(value: string): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function formatIsoDateForDisplay(iso?: string | null): string {
+  if (!iso) {
+    return '';
+  }
+  const parts = iso.split('-');
+  if (parts.length !== 3) {
+    return iso;
+  }
+  const [year, month, day] = parts;
+  if (!month || !day || !year) {
+    return iso;
+  }
+  return `${month.padStart(2, '0')}/${day.padStart(2, '0')}/${year}`;
 }

@@ -38,6 +38,9 @@ export interface ClinicalHistoryRecord {
   clinical_soap: string;
   medical_justification: string;
   profile_snapshot?: string;
+  isGuest?: boolean;
+  synced?: number; // 0 for false, 1 for true
+  synced_at?: number;
 }
 
 export const initDatabase = async () => {
@@ -99,7 +102,9 @@ export const initDatabase = async () => {
           recommended_level TEXT,
           clinical_soap TEXT,
           medical_justification TEXT,
-          profile_snapshot TEXT
+          profile_snapshot TEXT,
+          synced INTEGER DEFAULT 0,
+          synced_at INTEGER
         );
       `);
 
@@ -111,6 +116,8 @@ export const initDatabase = async () => {
         { name: 'clinical_soap', type: 'TEXT' },
         { name: 'medical_justification', type: 'TEXT' },
         { name: 'profile_snapshot', type: 'TEXT' },
+        { name: 'synced', type: 'INTEGER' },
+        { name: 'synced_at', type: 'INTEGER' },
       ]);
 
       // Create Medications Table
@@ -436,8 +443,8 @@ export const saveClinicalHistory = async (record: ClinicalHistoryRecord) => {
     await db.execAsync('BEGIN TRANSACTION');
 
     const statement = await db.prepareAsync(
-      `INSERT OR REPLACE INTO clinical_history (id, timestamp, initial_symptoms, recommended_level, clinical_soap, medical_justification, profile_snapshot) 
-       VALUES ($id, $timestamp, $initial_symptoms, $recommended_level, $clinical_soap, $medical_justification, $profile_snapshot)`,
+      `INSERT OR REPLACE INTO clinical_history (id, timestamp, initial_symptoms, recommended_level, clinical_soap, medical_justification, profile_snapshot, synced, synced_at) 
+       VALUES ($id, $timestamp, $initial_symptoms, $recommended_level, $clinical_soap, $medical_justification, $profile_snapshot, $synced, $synced_at)`,
     );
 
     try {
@@ -449,6 +456,8 @@ export const saveClinicalHistory = async (record: ClinicalHistoryRecord) => {
         $clinical_soap: record.clinical_soap,
         $medical_justification: record.medical_justification,
         $profile_snapshot: record.profile_snapshot || null,
+        $synced: record.synced || 0,
+        $synced_at: record.synced_at || null,
       });
 
       await db.execAsync('COMMIT');
@@ -481,6 +490,38 @@ export const getClinicalHistory = async (): Promise<ClinicalHistoryRecord[]> => 
     return result;
   } catch (error) {
     console.error('Error getting clinical history:', error);
+    throw error;
+  }
+};
+
+export const getUnsyncedHistory = async (): Promise<ClinicalHistoryRecord[]> => {
+  if (!db) await initDatabase();
+  if (!db) throw new Error('Database not initialized');
+
+  try {
+    const result = await db.getAllAsync<ClinicalHistoryRecord>(
+      'SELECT * FROM clinical_history WHERE synced = 0 OR synced IS NULL',
+    );
+    return result;
+  } catch (error) {
+    console.error('Error getting unsynced clinical history:', error);
+    throw error;
+  }
+};
+
+export const markHistorySynced = async (id: string) => {
+  if (!db) await initDatabase();
+  if (!db) throw new Error('Database not initialized');
+
+  const timestamp = Date.now();
+  try {
+    await db.runAsync('UPDATE clinical_history SET synced = 1, synced_at = ? WHERE id = ?', [
+      timestamp,
+      id,
+    ]);
+    console.log(`Marked clinical history record as synced: ${id}`);
+  } catch (error) {
+    console.error('Error marking history as synced:', error);
     throw error;
   }
 };

@@ -2,18 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { Switch, useTheme, Surface } from 'react-native-paper';
 import { useAppSelector } from '../../../hooks/reduxHooks';
+import { useAuthStatus } from '../../../hooks';
 import { selectAllMedications } from '../../../store/medicationSlice';
 import QRCode from 'react-native-qrcode-svg';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from '../../common/Text';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
-import { Button } from '../../common';
+import { Button, SignInRequired } from '../../common';
 
 export const DigitalIDCard: React.FC = () => {
   const theme = useTheme();
   const navigation = useNavigation<NavigationProp<Record<string, unknown>>>();
   const profile = useAppSelector((state) => state.profile);
   const medications = useAppSelector(selectAllMedications);
+  const { isSignedIn, derivedFullName, authDob, hasAuthDob } = useAuthStatus();
   const [showSnapshot, setShowSnapshot] = useState(false);
   const { width: screenWidth } = useWindowDimensions();
 
@@ -21,6 +23,10 @@ export const DigitalIDCard: React.FC = () => {
   const cardWidth = screenWidth - 48;
   const qrSize = 140;
   const scanHintMinWidth = qrSize + 32;
+  const resolvedFullName = profile.fullName?.trim() || derivedFullName;
+  const resolvedDob = profile.dob || (hasAuthDob ? authDob ?? null : null);
+  const displayFullName = resolvedFullName || '---';
+  const displayDob = resolvedDob ? formatDobForDisplay(resolvedDob) : '---';
 
   const activeMedicationStrings = useMemo(() => {
     return medications
@@ -42,8 +48,8 @@ export const DigitalIDCard: React.FC = () => {
       }
     };
 
-    addTextField('name', profile.fullName);
-    addTextField('date of birth', profile.dob);
+    addTextField('name', resolvedFullName);
+    addTextField('date of birth', resolvedDob);
     addTextField('blood type', profile.bloodType);
     addTextField('philhealth id', profile.philHealthId);
 
@@ -53,20 +59,27 @@ export const DigitalIDCard: React.FC = () => {
     }
 
     return payload;
-  }, [profile, activeMedicationStrings]);
+  }, [profile, activeMedicationStrings, resolvedFullName, resolvedDob]);
 
   const qrValue = JSON.stringify(qrPayload);
-
-  const hasName = !!profile.fullName?.trim();
-  const hasDob = !!profile.dob?.trim();
-  const formattedDob = hasDob ? formatDobForDisplay(profile.dob) : '---';
-
   const basicInfoEntries = [
-    { label: 'Full Name', value: hasName ? profile.fullName : '---' },
-    { label: 'Date of Birth', value: formattedDob || '---' },
+    { label: 'Full Name', value: displayFullName },
+    { label: 'Date of Birth', value: displayDob },
     { label: 'Blood Type', value: profile.bloodType || '---' },
     { label: 'PhilHealth ID', value: profile.philHealthId || '---' },
   ];
+
+  if (!isSignedIn) {
+    return (
+      <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]} elevation={2}>
+        <SignInRequired
+          title="Sign in to view your Health ID"
+          description="Health ID cards and snapshots are only available for authenticated users."
+          containerStyle={{ backgroundColor: 'transparent' }}
+        />
+      </Surface>
+    );
+  }
 
   return (
     <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]} elevation={2}>

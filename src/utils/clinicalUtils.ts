@@ -413,13 +413,22 @@ export const createClinicalSlotParser = (): ClinicalSlotParser => {
 export const reconcileClinicalProfileWithSlots = (
   profile: AssessmentProfile,
   incrementalSlots: ClinicalSlots,
-): AssessmentProfile => ({
-  ...profile,
-  age: profile.age ?? incrementalSlots.age ?? null,
-  duration: profile.duration ?? incrementalSlots.duration ?? null,
-  severity: profile.severity ?? incrementalSlots.severity ?? null,
-  fever_max_temp: profile.fever_max_temp ?? incrementalSlots.temperature ?? null,
-});
+): AssessmentProfile => {
+  const currentDetails = (profile.specific_details as Record<string, any>) || {};
+  const newDetails = { ...currentDetails };
+  
+  if (incrementalSlots.temperature) {
+    newDetails.fever_max_temp = incrementalSlots.temperature;
+  }
+
+  return {
+    ...profile,
+    age: profile.age ?? incrementalSlots.age ?? null,
+    duration: profile.duration ?? incrementalSlots.duration ?? null,
+    severity: profile.severity ?? incrementalSlots.severity ?? null,
+    specific_details: newDetails,
+  };
+};
 
 export const computeUnresolvedSlotGoals = (
   profile: AssessmentProfile | undefined,

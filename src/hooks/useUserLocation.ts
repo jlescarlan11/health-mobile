@@ -136,6 +136,17 @@ export const useUserLocation = (options: UseUserLocationOptions = { watch: false
     }
   }, [showDeniedAlert]);
 
+  const refreshPermissionStatus = useCallback(async () => {
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      setPermissionStatus(status);
+      return status;
+    } catch (error) {
+      console.warn('Error refreshing location permission status:', error);
+      return null;
+    }
+  }, []);
+
   const getCurrentLocation = useCallback(async () => {
     const hasPermission = await requestPermission();
     if (!hasPermission) return;
@@ -215,6 +226,7 @@ export const useUserLocation = (options: UseUserLocationOptions = { watch: false
     manualDistrictId,
     requestPermission,
     getCurrentLocation,
+    refreshPermissionStatus,
     setManualLocation,
   };
 };

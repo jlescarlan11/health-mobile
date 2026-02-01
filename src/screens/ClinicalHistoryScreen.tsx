@@ -9,12 +9,13 @@ import { RootState } from '../store';
 import * as DB from '../services/database';
 import { ClinicalHistoryRecord } from '../services/database';
 import { StandardHeader } from '../components/common/StandardHeader';
-import { Button, Text, ScreenSafeArea } from '../components/common';
+import { Button, Text, ScreenSafeArea, SignInRequired, LoadingScreen } from '../components/common';
 import { theme as appTheme } from '../theme';
+import { useAuthStatus } from '../hooks';
 
 type Props = RootStackScreenProps<'ClinicalHistory'>;
 
-export const ClinicalHistoryScreen = () => {
+const ClinicalHistoryContent = () => {
   const navigation = useNavigation<Props['navigation']>();
   const theme = useTheme();
   const currentProfile = useSelector((state: RootState) => state.profile);
@@ -108,9 +109,17 @@ export const ClinicalHistoryScreen = () => {
         <Card.Content style={styles.cardContent}>
           <View style={styles.textContainer}>
             <View style={styles.titleRow}>
-              <Text variant="titleMedium" numberOfLines={1} style={styles.symptomText}>
-                {item.initial_symptoms}
-              </Text>
+              <View style={styles.titleWithSync}>
+                <Text variant="titleMedium" numberOfLines={1} style={styles.symptomText}>
+                  {item.initial_symptoms}
+                </Text>
+                <MaterialCommunityIcons 
+                  name={item.synced ? "cloud-check" : "cloud-upload-outline"} 
+                  size={16} 
+                  color={item.synced ? theme.colors.primary : theme.colors.outline}
+                  style={styles.syncIcon}
+                />
+              </View>
               {isArchived && (
                 <Surface style={styles.archivedBadge} elevation={0}>
                   <Text variant="labelSmall" style={styles.archivedBadgeText}>
@@ -214,6 +223,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 2,
   },
+  titleWithSync: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  syncIcon: {
+    marginLeft: 4,
+  },
   symptomText: {
     fontWeight: '700',
     flex: 1,
@@ -261,4 +278,56 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 250,
   },
+  gatingWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
 });
+
+export const ClinicalHistoryScreen = () => {
+  const { isSignedIn, isSessionLoaded } = useAuthStatus();
+  const theme = useTheme();
+  const navigation = useNavigation<RootStackScreenProps<'ClinicalHistory'>['navigation']>();
+
+  if (!isSessionLoaded) {
+    return (
+      <ScreenSafeArea
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['left', 'right', 'bottom']}
+      >
+        <StandardHeader
+          title="My Health Records"
+          showBackButton
+          onBackPress={() => navigation.goBack()}
+        />
+        <View style={styles.gatingWrapper}>
+          <LoadingScreen />
+        </View>
+      </ScreenSafeArea>
+    );
+  }
+
+  if (!isSignedIn) {
+    return (
+      <ScreenSafeArea
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['left', 'right', 'bottom']}
+      >
+        <StandardHeader
+          title="My Health Records"
+          showBackButton
+          onBackPress={() => navigation.goBack()}
+        />
+        <View style={styles.gatingWrapper}>
+          <SignInRequired
+            title="Sign in to view health records"
+            description="Clinical history is private to your account. Sign in or create an account to continue."
+          />
+        </View>
+      </ScreenSafeArea>
+    );
+  }
+
+  return <ClinicalHistoryContent />;
+};

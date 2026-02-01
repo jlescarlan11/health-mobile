@@ -21,18 +21,20 @@ import {
   EmergencyActions,
   FeatureChip,
   ScreenSafeArea,
+  SignInRequired,
+  LoadingScreen,
 } from '../../components/common';
 import { chipLayoutStyles } from '../../components/common/chipLayout';
 import { detectEmergency } from '../../services/emergencyDetector';
 import { detectMentalHealthCrisis } from '../../services/mentalHealthDetector';
 import { setHighRisk, clearAssessmentState, setSymptomDraft } from '../../store/navigationSlice';
-import { useKeyboard } from '../../hooks';
+import { useKeyboard, useAuthStatus } from '../../hooks';
 
 type NavigationProp = CheckStackScreenProps<'CheckSymptom'>['navigation'];
 
 const QUICK_SYMPTOMS = ['Fever', 'Cough', 'Headache', 'Stomach Pain', 'Prenatal Care', 'Injury'];
 
-const CheckSymptomScreen = () => {
+const CheckSymptomContent = () => {
   const navigation = useNavigation<NavigationProp>();
   const dispatch = useDispatch();
   const savedDraft = useSelector((state: RootState) => state.navigation.symptomDraft);
@@ -362,6 +364,47 @@ const styles = StyleSheet.create({
   },
   quickActions: { marginBottom: 24 },
   sectionTitle: { marginBottom: 12, fontWeight: '700', letterSpacing: 0.5, fontSize: 16 },
+  gatingWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
 });
+
+const CheckSymptomScreen = () => {
+  const { isSignedIn, isSessionLoaded } = useAuthStatus();
+  const theme = useTheme();
+
+  if (!isSessionLoaded) {
+    return (
+      <ScreenSafeArea
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['left', 'right', 'bottom']}
+      >
+        <View style={styles.gatingWrapper}>
+          <LoadingScreen />
+        </View>
+      </ScreenSafeArea>
+    );
+  }
+
+  if (!isSignedIn) {
+    return (
+      <ScreenSafeArea
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['left', 'right', 'bottom']}
+      >
+        <View style={styles.gatingWrapper}>
+          <SignInRequired
+            title="Sign in to check symptoms"
+            description="Symptom guidance is tied to authenticated care. Sign in or create an account to continue."
+          />
+        </View>
+      </ScreenSafeArea>
+    );
+  }
+
+  return <CheckSymptomContent />;
+};
 
 export default CheckSymptomScreen;

@@ -6,13 +6,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
-  Pressable,
   ScrollView,
 } from 'react-native';
-import { Menu, Searchbar, Chip, useTheme } from 'react-native-paper';
+import { Searchbar, Chip, useTheme } from 'react-native-paper';
 import { Text } from '../../components/common/Text';
 import { useDispatch, useSelector } from 'react-redux';
-import { useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { debounce } from 'lodash';
 import { ScreenSafeArea, Button } from '../../components/common';
 
@@ -22,7 +21,6 @@ import { FacilityListView } from '../../components/features/facilities';
 import { StandardHeader } from '../../components/common/StandardHeader';
 import { FacilitiesStackParamList } from '../../navigation/types';
 import { useUserLocation } from '../../hooks';
-import { NAGA_CITY_DISTRICTS } from '../../constants/location';
 
 const FILTERS = [
   { id: 'health_center', label: 'Health Centers', facet: 'type' },
@@ -38,7 +36,6 @@ export const FacilityDirectoryScreen = () => {
   const route = useRoute<RouteProp<FacilitiesStackParamList, 'FacilityDirectory'>>();
   const dispatch = useDispatch<AppDispatch>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [districtMenuVisible, setDistrictMenuVisible] = useState(false);
   const filters = useSelector((state: RootState) => state.facilities.filters);
 
   // Use the custom hook for location management
@@ -46,14 +43,12 @@ export const FacilityDirectoryScreen = () => {
   const {
     permissionStatus,
     getCurrentLocation,
-    setManualLocation,
-    manualDistrictId,
+    refreshPermissionStatus,
   } = useUserLocation({
     watch: false,
     requestOnMount: false,
     showDeniedAlert: false,
   });
-  const selectedDistrict = NAGA_CITY_DISTRICTS.find((d) => d.id === manualDistrictId);
 
   // Load initial data
   useEffect(() => {
@@ -145,17 +140,28 @@ export const FacilityDirectoryScreen = () => {
     permissionStatus === 'denied' || permissionStatus === 'undetermined';
 
   const handlePermissionPress = () => {
-    if (permissionStatus === 'undetermined') {
-      getCurrentLocation();
-    } else {
-      Linking.openSettings().catch(() => {});
-    }
+    Linking.openSettings().catch(() => {});
   };
 
-  const handleDistrictSelect = (districtId: string) => {
-    setManualLocation(districtId);
-    setDistrictMenuVisible(false);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const refresh = async () => {
+        const status = await refreshPermissionStatus();
+        if (!isActive) return;
+        if (status === 'granted') {
+          getCurrentLocation();
+        }
+      };
+
+      refresh();
+
+      return () => {
+        isActive = false;
+      };
+    }, [getCurrentLocation, refreshPermissionStatus]),
+  );
 
   return (
     <ScreenSafeArea style={styles.container} edges={['left', 'right', 'bottom']}>
@@ -241,91 +247,33 @@ export const FacilityDirectoryScreen = () => {
             </ScrollView>
           </View>
 
-          <FacilityListView
-            ListHeaderComponent={
-              showLocationPermissionBanner ? (
-                <View style={styles.locationBannerContainer}>
-                  <Pressable
-                    onPress={handlePermissionPress}
-                    style={({ pressed }) => [
-                      styles.locationBanner,
-                      {
-                        borderColor: theme.colors.outlineVariant,
-                        backgroundColor: pressed ? theme.colors.surfaceVariant : 'transparent',
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="bodyMedium"
-                      style={{
-                        color: theme.colors.primary,
-                        textAlign: 'center',
-                        fontWeight: '500',
-                      }}
-                    >
-                      Find the nearest help by sharing your location.
-                    </Text>
-                  </Pressable>
+          {showLocationPermissionBanner && (
+            <View
+              style={[
+                styles.permissionBanner,
+                {
+                  borderColor: theme.colors.outlineVariant,
+                  backgroundColor: theme.colors.surfaceVariant,
+                },
+              ]}
+            >
+              <Text
+                variant="bodyMedium"
+                style={[styles.permissionBannerText, { color: theme.colors.onSurfaceVariant }]}
+              >
+                Location is off. Enable it in Settings to use location-based features.
+              </Text>
+              <Button
+                variant="outline"
+                title="Open Settings"
+                onPress={handlePermissionPress}
+                contentStyle={styles.permissionButtonContent}
+                style={styles.permissionButton}
+              />
+            </View>
+          )}
 
-                  <View style={styles.manualLocationRow}>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                      Or select your district:
-                    </Text>
-                    <Menu
-                      visible={districtMenuVisible}
-                      onDismiss={() => setDistrictMenuVisible(false)}
-                      anchor={
-                        <Button
-                          variant="ghost"
-                          compact
-                          onPress={() => setDistrictMenuVisible(true)}
-                          icon="chevron-down"
-                          contentStyle={{ flexDirection: 'row-reverse' }}
-                          title={selectedDistrict ? selectedDistrict.name : 'Select District'}
-                        />
-                      }
-                    >
-                      {NAGA_CITY_DISTRICTS.map((district) => (
-                        <Menu.Item
-                          key={district.id}
-                          onPress={() => handleDistrictSelect(district.id)}
-                          title={district.name}
-                        />
-                      ))}
-                    </Menu>
-                  </View>
-                </View>
-              ) : selectedDistrict ? (
-                <View style={styles.selectedDistrictBanner}>
-                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                    Sorted by distance from
-                  </Text>
-                  <Menu
-                    visible={districtMenuVisible}
-                    onDismiss={() => setDistrictMenuVisible(false)}
-                    anchor={
-                      <Button
-                        variant="ghost"
-                        compact
-                        onPress={() => setDistrictMenuVisible(true)}
-                        icon="chevron-down"
-                        contentStyle={{ flexDirection: 'row-reverse' }}
-                        title={selectedDistrict.name}
-                      />
-                    }
-                  >
-                    {NAGA_CITY_DISTRICTS.map((district) => (
-                      <Menu.Item
-                        key={district.id}
-                        onPress={() => handleDistrictSelect(district.id)}
-                        title={district.name}
-                      />
-                    ))}
-                  </Menu>
-                </View>
-              ) : null
-            }
-          />
+          <FacilityListView />
         </View>
       </KeyboardAvoidingView>
     </ScreenSafeArea>
@@ -359,36 +307,24 @@ const styles = StyleSheet.create({
   chip: {
     marginRight: 8,
   },
-  locationBannerContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  locationBanner: {
+  permissionBanner: {
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    justifyContent: 'space-between',
   },
-  manualLocationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  permissionBannerText: {
+    fontWeight: '500',
+    marginBottom: 12,
+    textAlign: 'left',
   },
-  selectedDistrictBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  permissionButton: {
+    alignSelf: 'flex-start',
+  },
+  permissionButtonContent: {
     paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
   },
 });
 

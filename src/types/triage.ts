@@ -206,7 +206,7 @@ export interface AssessmentProfile {
   red_flags_resolved?: boolean;
   uncertainty_accepted?: boolean; // True if user explicitly says "I don't know" for a core slot
   clinical_friction_detected?: boolean;
-  clinical_friction_details?: string;
+  clinical_friction_details?: string | null;
   is_complex_case?: boolean;
   is_vulnerable?: boolean;
   symptom_category?: 'simple' | 'complex' | 'critical';
@@ -218,15 +218,8 @@ export interface AssessmentProfile {
 
   // Symptom coverage tracking
   denied_symptoms?: string[]; // Symptoms explicitly denied by the user
-  covered_symptoms?: string[]; // Symptoms already asked about or ruled out
-
-  // Fever-specific slots (Phase 4 Optimization)
-  fever_duration?: string | null;
-  fever_max_temp?: string | null;
-  fever_antipyretic_response?: string | null;
-  fever_hydration_ability?: string | null;
-  fever_functional_status?: string | null;
-  fever_red_flags_checklist?: string | null;
+  covered_symptoms?: string[];
+  specific_details?: Record<string, any> | null;
   termination_reason?: string | null;
 }
 
@@ -268,4 +261,48 @@ export interface AssessmentData {
   offlineRecommendation?: TriageRecommendation;
   extractedProfile?: AssessmentProfile;
   affectedSystems?: string[];
+}
+
+export interface ChatHistoryItem {
+  role: 'user' | 'assistant' | 'system';
+  text: string;
+}
+
+export type TriageSignal =
+  | 'TERMINATE'
+  | 'CONTINUE'
+  | 'RESOLVE_AMBIGUITY'
+  | 'PRIORITIZE_RED_FLAGS'
+  | 'REQUIRE_CLARIFICATION'
+  | 'DRILL_DOWN';
+
+export interface TriageAssessmentRequest {
+  history: ChatHistoryItem[];
+  profile?: AssessmentProfile;
+  currentTurn: number;
+  totalPlannedQuestions: number;
+  remainingQuestions: AssessmentQuestion[];
+  previousProfile?: AssessmentProfile;
+  clarificationAttempts?: number;
+  patientContext?: string;
+  initialSymptom: string;
+  fullName?: string;
+}
+
+export interface TriageAssessmentResponse {
+  version: string;
+  controlSignal: TriageSignal;
+  aiResponse: {
+    text: string;
+    question?: AssessmentQuestion;
+    assessment?: any; // The final AssessmentResponse if TERMINATE
+  };
+  updatedProfile: AssessmentProfile;
+  metadata?: {
+    reason?: string;
+    nextSteps?: string[];
+    needs_reset?: boolean;
+    saturation_count?: number;
+    emergency_detected?: boolean;
+  };
 }

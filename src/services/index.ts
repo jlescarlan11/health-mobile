@@ -3,5 +3,4 @@ export * from './facilityService';
 export * from './emergencyDetector';
 export * from './mentalHealthDetector';
 export * from './triageEngine';
-export * from './triageArbiter';
 export * from './syncService';

@@ -143,11 +143,11 @@ export abstract class KeywordDetector {
       .map((s) => s.trim())
       .filter((s) => s.length > 1);
 
-    // 4. Filter out purely numeric or short noise segments
+    // 4. Drop segments that are too short or contain system-only indicators
     const validSegments = segments.filter((segment) => {
-      if (/^\d+$/.test(segment)) return false;
       if (segment.length < 2) return false;
 
+      // Keep numeric-only answers (e.g., age) so sanitization doesn't strip the entire response.
       const lower = segment.toLowerCase();
       const systemWords = ['unknown', 'none', 'denied', 'none reported', 'not applicable', 'n/a'];
       if (systemWords.includes(lower)) return false;

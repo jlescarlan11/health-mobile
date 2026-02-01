@@ -70,6 +70,8 @@ interface NavigationState {
     pendingCorrection?: string | null;
     incrementalSlots: ClinicalSlots;
     isGuestMode: boolean;
+    deniedSymptoms: string[];
+    coveredSymptoms: string[];
   } | null;
 }
 
@@ -146,6 +148,8 @@ const navigationSlice = createSlice({
           triageSnapshot: null,
           incrementalSlots: {},
           isGuestMode: false,
+          deniedSymptoms: [],
+          coveredSymptoms: [],
           ...action.payload,
         } as NavigationState['assessmentState'];
       } else if (state.assessmentState && action.payload) {

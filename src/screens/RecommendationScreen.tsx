@@ -37,6 +37,7 @@ import {
   detectEmergency,
   COMBINATION_RISKS,
 } from "../services/emergencyDetector";
+import type { EmergencyDetectionResult } from "../services/emergencyDetector";
 import { FacilityCard } from "../components/common/FacilityCard";
 import { FacilityCardSkeleton } from "../components/features/facilities/FacilityCardSkeleton";
 import {
@@ -58,6 +59,7 @@ import {
   AssessmentProfile,
   TriageLevel,
   TriageAdjustmentRule,
+  TriageLogic,
 } from "../types/triage";
 import { formatEmpatheticResponse } from "../utils/empatheticResponses";
 
@@ -212,6 +214,77 @@ const summarizeInitialSymptom = (symptom?: string) => {
 
   const wasTruncated = normalized.length > candidate.length;
   return appendEllipsisIfNeeded(candidate, wasTruncated);
+};
+
+const LOCAL_EMERGENCY_RULE: TriageAdjustmentRule = "RED_FLAG_UPGRADE";
+
+const buildLocalEmergencyAssessment = (
+  detection: EmergencyDetectionResult,
+): AssessmentResponse => {
+  const matchedKeywords = detection.matchedKeywords || [];
+  const affectedSystems = detection.affectedSystems || [];
+  const systemsLabel =
+    affectedSystems.length > 0 ? affectedSystems.join(", ") : "specified systems";
+
+  let advice =
+    "CRITICAL: Potential life-threatening condition detected based on your symptoms. Go to the nearest emergency room or call emergency services immediately.";
+
+  if (affectedSystems.includes("Trauma")) {
+    advice =
+      "CRITICAL: Severe injury detected. Please go to the nearest emergency room immediately for urgent trauma care.";
+  } else if (
+    affectedSystems.includes("Cardiac") ||
+    affectedSystems.includes("Respiratory")
+  ) {
+    advice =
+      "CRITICAL: Potential life-threatening cardiovascular or respiratory distress detected. Seek emergency medical care immediately.";
+  } else if (affectedSystems.includes("Neurological")) {
+    advice =
+      "CRITICAL: Potential neurological emergency detected. Please go to the nearest emergency room immediately.";
+  }
+
+  const matchedList = matchedKeywords.length
+    ? matchedKeywords.join(", ")
+    : "unspecified emergency keywords";
+  const reason =
+    detection.medical_justification ||
+    `Emergency keywords detected: ${matchedList}. Systems: ${systemsLabel}.`;
+
+  const triageLogic: TriageLogic = {
+    original_level: "emergency",
+    final_level: "emergency",
+    adjustments: [
+      {
+        from: "emergency",
+        to: "emergency",
+        rule: LOCAL_EMERGENCY_RULE,
+        reason,
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
+
+  const concernItems =
+    matchedKeywords.length > 0
+      ? matchedKeywords.map((k) => `Urgent: ${k}`)
+      : ["Critical symptoms detected"];
+
+  return {
+    recommended_level: "emergency",
+    follow_up_questions: [],
+    user_advice: advice,
+    clinical_soap: `S: Emergency keywords detected (${matchedList}). O: Local detector flagged ${systemsLabel}. A: Potential life-threatening condition. P: Immediate emergency referral.`,
+    key_concerns: concernItems,
+    critical_warnings: [
+      "Immediate medical attention required",
+      "Do not delay care",
+    ],
+    relevant_services: ["Emergency"],
+    red_flags: matchedKeywords,
+    triage_readiness_score: 1.0,
+    medical_justification: reason,
+    triage_logic: triageLogic,
+  };
 };
 
 const RecommendationScreen = () => {
@@ -526,6 +599,34 @@ const RecommendationScreen = () => {
 
       // **Safety Context for local scan (User-only content)**
       const safetyContext = `Initial Symptom: ${symptomsRef.current}. Answers: ${userAnswersOnly}.`;
+
+      const emergencyCheck = detectEmergency(safetyContext, {
+        isUserInput: true,
+        profile,
+      });
+
+      if (emergencyCheck.isEmergency && !profile?.is_recent_resolved) {
+        console.warn(
+          `[Recommendation] Local emergency detected for run ${currentRunId}. Bypassing backend analysis.`,
+        );
+        const emergencyResponse = buildLocalEmergencyAssessment(emergencyCheck);
+        setRecommendation(emergencyResponse);
+        setNarratives(null);
+        dispatch(
+          setReduxRecommendation({
+            level: emergencyResponse.recommended_level,
+            user_advice: emergencyResponse.user_advice,
+            clinical_soap: emergencyResponse.clinical_soap,
+            isFallbackApplied: true,
+            clinicalFrictionDetails: emergencyResponse.clinical_friction_details,
+            medical_justification: emergencyResponse.medical_justification,
+          }),
+        );
+        dispatch(setHighRisk(true));
+        isAnalysisInProgressRef.current = false;
+        setLoading(false);
+        return;
+      }
 
       const caseCacheKey = buildStableCaseKey(
         symptomsRef.current,

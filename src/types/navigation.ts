@@ -41,6 +41,8 @@ export type RootStackParamList = {
   ClinicalHistory: undefined;
   HealthProfileEdit: undefined;
   FacilityDetails: { facilityId: string };
+  SignIn: undefined;
+  SignUp: undefined;
   CrisisSupport: undefined;
   YakapFaq: undefined;
   YakapGuidePaths: undefined;

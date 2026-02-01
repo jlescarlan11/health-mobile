@@ -15,6 +15,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import secureStorage from './secureStorage';
 
+import authReducer from './authSlice';
 import facilitiesReducer from './facilitiesSlice';
 import navigationReducer from './navigationSlice';
 import offlineReducer from './offlineSlice';
@@ -24,6 +25,7 @@ import profileReducer from './profileSlice';
 import feedReducer from './feedSlice';
 
 // Re-export reducers for convenience
+export { default as authReducer } from './authSlice';
 export { default as facilitiesReducer } from './facilitiesSlice';
 export { default as navigationReducer } from './navigationSlice';
 export { default as offlineReducer } from './offlineSlice';
@@ -178,6 +180,7 @@ const profilePersistConfig = {
 };
 
 const rootReducer = combineReducers({
+  auth: authReducer,
   facilities: facilitiesReducer,
   navigation: navigationReducer,
   offline: offlineReducer,
