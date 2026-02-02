@@ -1,5 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
 import { TextInput, HelperText, useTheme } from 'react-native-paper';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { StandardHeader } from '../components/common/StandardHeader';
@@ -129,107 +137,118 @@ export const SignUpScreen = () => {
   return (
     <ScreenSafeArea style={styles.safeArea}>
       <StandardHeader title="Create Account" showBackButton />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
-        <Text style={[styles.sectionTitle, { fontSize: 18 * scaleFactor }]}>Create your profile</Text>
-        <Text style={[styles.description, { fontSize: 14 * scaleFactor }]}>
-          {integrationWarning}
-        </Text>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={[styles.sectionTitle, { fontSize: 18 * scaleFactor }]}>Create your profile</Text>
+            <Text style={[styles.description, { fontSize: 14 * scaleFactor }]}>{integrationWarning}</Text>
 
-        {!!errorMessage && (
-          <View style={styles.errorPill}>
-            <Text style={{ color: theme.colors.error }}>{errorMessage}</Text>
-          </View>
-        )}
+            {!!errorMessage && (
+              <View style={styles.errorPill}>
+                <Text style={{ color: theme.colors.error }}>{errorMessage}</Text>
+              </View>
+            )}
 
-        <View style={styles.formField}>
-          <TextInput
-            label="First name"
-            value={firstName}
-            onChangeText={setFirstName}
-            mode="outlined"
-            autoCapitalize="words"
-          />
-          {firstNameHelperText && <HelperText type="error">{firstNameHelperText}</HelperText>}
-        </View>
+            <View style={styles.formField}>
+              <TextInput
+                label="First name"
+                value={firstName}
+                onChangeText={setFirstName}
+                mode="outlined"
+                autoCapitalize="words"
+              />
+              {firstNameHelperText && <HelperText type="error">{firstNameHelperText}</HelperText>}
+            </View>
 
-        <View style={styles.formField}>
-          <TextInput
-            label="Last name"
-            value={lastName}
-            onChangeText={setLastName}
-            mode="outlined"
-            autoCapitalize="words"
-          />
-          {lastNameHelperText && <HelperText type="error">{lastNameHelperText}</HelperText>}
-        </View>
+            <View style={styles.formField}>
+              <TextInput
+                label="Last name"
+                value={lastName}
+                onChangeText={setLastName}
+                mode="outlined"
+                autoCapitalize="words"
+              />
+              {lastNameHelperText && <HelperText type="error">{lastNameHelperText}</HelperText>}
+            </View>
 
-        <View style={styles.formField}>
-          <TextInput
-            label="Phone number"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
-            mode="outlined"
-          />
-          {phoneHelperText && <HelperText type="error">{phoneHelperText}</HelperText>}
-        </View>
+            <View style={styles.formField}>
+              <TextInput
+                label="Phone number"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+                mode="outlined"
+              />
+              {phoneHelperText && <HelperText type="error">{phoneHelperText}</HelperText>}
+            </View>
 
-        <View style={styles.formField}>
-          <TextInput
-            label="Date of birth"
-            placeholder={DATE_PLACEHOLDER}
-            value={dateOfBirth}
-            onChangeText={(value) => setDateOfBirth(formatDateOfBirthInput(value))}
-            mode="outlined"
-          />
-          {dateOfBirthHelperText && <HelperText type="error">{dateOfBirthHelperText}</HelperText>}
-        </View>
+            <View style={styles.formField}>
+              <TextInput
+                label="Date of birth"
+                placeholder={DATE_PLACEHOLDER}
+                value={dateOfBirth}
+                onChangeText={(value) => setDateOfBirth(formatDateOfBirthInput(value))}
+                mode="outlined"
+              />
+              {dateOfBirthHelperText && <HelperText type="error">{dateOfBirthHelperText}</HelperText>}
+            </View>
 
-        <View style={styles.formField}>
-          <TextInput
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            mode="outlined"
-          />
-          {passwordHelperText && <HelperText type="error">{passwordHelperText}</HelperText>}
-        </View>
+            <View style={styles.formField}>
+              <TextInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                mode="outlined"
+              />
+              {passwordHelperText && <HelperText type="error">{passwordHelperText}</HelperText>}
+            </View>
 
-        <View style={styles.formField}>
-          <TextInput
-            label="Confirm password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            mode="outlined"
-          />
-          {confirmPasswordHelperText && <HelperText type="error">{confirmPasswordHelperText}</HelperText>}
-        </View>
+            <View style={styles.formField}>
+              <TextInput
+                label="Confirm password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                mode="outlined"
+              />
+              {confirmPasswordHelperText && <HelperText type="error">{confirmPasswordHelperText}</HelperText>}
+            </View>
 
-        <Button
-          title="Create Account"
-          onPress={handleSubmit}
-          loading={isSubmitting}
-          disabled={!isFormValid || isSubmitting}
-          style={styles.submitButton}
-        />
+            <Button
+              title="Create Account"
+              onPress={handleSubmit}
+              loading={isSubmitting}
+              disabled={!isFormValid || isSubmitting}
+              style={styles.submitButton}
+            />
 
-        <View style={styles.linkRow}>
-          <Text style={{ fontSize: 14 * scaleFactor, marginRight: 8 }}>Already have an account?</Text>
-          <Button title="Sign In" variant="ghost" onPress={() => navigation.navigate('SignIn')} />
-        </View>
-      </ScrollView>
+            <View style={styles.linkRow}>
+              <Text style={{ fontSize: 14 * scaleFactor, marginRight: 8 }}>Already have an account?</Text>
+              <Button title="Sign In" variant="ghost" onPress={() => navigation.navigate('SignIn')} />
+            </View>
+
+            <View style={styles.bottomSpacer} />
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </ScreenSafeArea>
   );
 };
 
 const styles = StyleSheet.create({
   safeArea: {
+    flex: 1,
+  },
+  keyboardAvoidingContainer: {
     flex: 1,
   },
   content: {
@@ -260,5 +279,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 24,
+  },
+  bottomSpacer: {
+    height: 120,
   },
 });
