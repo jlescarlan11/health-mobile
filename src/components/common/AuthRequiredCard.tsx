@@ -1,30 +1,33 @@
 import React from 'react';
 import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { Surface, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button } from './Button';
 import { Text } from './Text';
 import { useRouter } from 'expo-router';
 
-type SignInRequiredProps = {
+type AuthRequiredCardProps = {
+  containerStyle?: StyleProp<ViewStyle>;
   title?: string;
   description?: string;
-  containerStyle?: StyleProp<ViewStyle>;
 };
 
-export const SignInRequired: React.FC<SignInRequiredProps> = ({
-  title = 'Sign in required',
-  description = 'This feature requires an authenticated account to keep your data private.',
+export const AuthRequiredCard: React.FC<AuthRequiredCardProps> = ({
   containerStyle,
+  title = 'Get the FULL Experience',
+  description = 'Sign in to access full features and services.',
 }) => {
   const theme = useTheme();
   const router = useRouter();
 
   return (
-    <View style={[styles.wrapper, containerStyle]}>
+    <Surface
+      style={[styles.wrapper, { backgroundColor: theme.colors.surface }, containerStyle]}
+      elevation={2}
+    >
       <MaterialCommunityIcons
-        name="account-lock-outline"
-        size={48}
+        name="shield-lock-outline"
+        size={44}
         color={theme.colors.primary}
         style={styles.icon}
       />
@@ -41,22 +44,18 @@ export const SignInRequired: React.FC<SignInRequiredProps> = ({
           onPress={() => router.push('/SignIn')}
           style={styles.primaryButton}
         />
-        <Button
-          title="Create Account"
-          variant="ghost"
-          onPress={() => router.push('/SignUp')}
-        />
+        <Button title="Create Account" variant="ghost" onPress={() => router.push('/SignUp')} />
       </View>
-    </View>
+    </Surface>
   );
 };
 
 const styles = StyleSheet.create({
   wrapper: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 18,
     padding: 24,
-    borderRadius: 16,
+    alignItems: 'center',
+    marginVertical: 16,
   },
   icon: {
     marginBottom: 12,

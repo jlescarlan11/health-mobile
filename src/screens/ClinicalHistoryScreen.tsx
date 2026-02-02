@@ -9,9 +9,9 @@ import { RootState } from '../store';
 import * as DB from '../services/database';
 import { ClinicalHistoryRecord } from '../services/database';
 import { StandardHeader } from '../components/common/StandardHeader';
-import { Button, Text, ScreenSafeArea, SignInRequired, LoadingScreen } from '../components/common';
+import { Button, Text, ScreenSafeArea, LoadingScreen } from '../components/common';
 import { theme as appTheme } from '../theme';
-import { useAuthStatus } from '../hooks';
+import { useAuthStatus, useRedirectToSettingsIfSignedOut } from '../hooks';
 
 type Props = RootStackScreenProps<'ClinicalHistory'>;
 
@@ -290,7 +290,9 @@ export const ClinicalHistoryScreen = () => {
   const theme = useTheme();
   const navigation = useNavigation<RootStackScreenProps<'ClinicalHistory'>['navigation']>();
 
-  if (!isSessionLoaded) {
+  useRedirectToSettingsIfSignedOut(isSignedIn, isSessionLoaded);
+
+  if (!isSessionLoaded || !isSignedIn) {
     return (
       <ScreenSafeArea
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -303,27 +305,6 @@ export const ClinicalHistoryScreen = () => {
         />
         <View style={styles.gatingWrapper}>
           <LoadingScreen />
-        </View>
-      </ScreenSafeArea>
-    );
-  }
-
-  if (!isSignedIn) {
-    return (
-      <ScreenSafeArea
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
-        edges={['left', 'right', 'bottom']}
-      >
-        <StandardHeader
-          title="My Health Records"
-          showBackButton
-          onBackPress={() => navigation.goBack()}
-        />
-        <View style={styles.gatingWrapper}>
-          <SignInRequired
-            title="Sign in to view health records"
-            description="Clinical history is private to your account. Sign in or create an account to continue."
-          />
         </View>
       </ScreenSafeArea>
     );

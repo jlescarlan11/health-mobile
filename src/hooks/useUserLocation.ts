@@ -21,6 +21,8 @@ export const useUserLocation = (options: UseUserLocationOptions = { watch: false
   const [manualDistrictId, setManualDistrictId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<Location.PermissionStatus | null>(null);
+  const [permissionResponse, setPermissionResponse] = useState<Location.PermissionResponse | null>(null);
+  const [locationServicesEnabled, setLocationServicesEnabled] = useState<boolean | null>(null);
   const dispatch = useDispatch();
   const facilities = useSelector((state: RootState) => state.facilities.facilities);
   const facilitiesRef = useRef(facilities);
@@ -110,12 +112,25 @@ export const useUserLocation = (options: UseUserLocationOptions = { watch: false
     [dispatch],
   );
 
+  const refreshLocationServicesEnabled = useCallback(async () => {
+    try {
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      setLocationServicesEnabled(servicesEnabled);
+      return servicesEnabled;
+    } catch (error) {
+      console.warn('Error checking location services availability:', error);
+      return true;
+    }
+  }, []);
+
   const requestPermission = useCallback(async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      setPermissionStatus(status);
+      const response = await Location.requestForegroundPermissionsAsync();
+      setPermissionResponse(response);
+      setPermissionStatus(response.status);
+      await refreshLocationServicesEnabled();
 
-      if (status !== 'granted') {
+      if (response.status !== 'granted') {
         setErrorMsg('Permission to access location was denied');
         if (showDeniedAlert) {
           Alert.alert(
@@ -134,18 +149,20 @@ export const useUserLocation = (options: UseUserLocationOptions = { watch: false
       console.warn('Error requesting location permission:', err);
       return false;
     }
-  }, [showDeniedAlert]);
+  }, [refreshLocationServicesEnabled, showDeniedAlert]);
 
   const refreshPermissionStatus = useCallback(async () => {
     try {
-      const { status } = await Location.getForegroundPermissionsAsync();
-      setPermissionStatus(status);
-      return status;
+      const response = await Location.getForegroundPermissionsAsync();
+      setPermissionResponse(response);
+      setPermissionStatus(response.status);
+      await refreshLocationServicesEnabled();
+      return response.status;
     } catch (error) {
       console.warn('Error refreshing location permission status:', error);
       return null;
     }
-  }, []);
+  }, [refreshLocationServicesEnabled]);
 
   const getCurrentLocation = useCallback(async () => {
     const hasPermission = await requestPermission();
@@ -173,10 +190,12 @@ export const useUserLocation = (options: UseUserLocationOptions = { watch: false
     let subscription: Location.LocationSubscription | null = null;
 
     const startWatching = async () => {
-      const { status: currentStatus } = await Location.getForegroundPermissionsAsync();
-      setPermissionStatus(currentStatus);
+      const currentPermission = await Location.getForegroundPermissionsAsync();
+      setPermissionResponse(currentPermission);
+      setPermissionStatus(currentPermission.status);
+      await refreshLocationServicesEnabled();
 
-      if (currentStatus !== 'granted') {
+      if (currentPermission.status !== 'granted') {
         if (!requestOnMount) return;
         const hasPermission = await requestPermission();
         if (!hasPermission) return;
@@ -217,12 +236,24 @@ export const useUserLocation = (options: UseUserLocationOptions = { watch: false
         subscription.remove();
       }
     };
-  }, [watch, requestOnMount, checkProximity, dispatch, getCurrentLocation, requestPermission]);
+  }, [
+    watch,
+    requestOnMount,
+    checkProximity,
+    dispatch,
+    getCurrentLocation,
+    requestPermission,
+    refreshLocationServicesEnabled,
+  ]);
+
+  const permissionCanAskAgain = permissionResponse?.canAskAgain ?? null;
 
   return {
     location,
     errorMsg,
     permissionStatus,
+    permissionCanAskAgain,
+    locationServicesEnabled,
     manualDistrictId,
     requestPermission,
     getCurrentLocation,

@@ -11,16 +11,16 @@ import {
 import { Searchbar, Chip, useTheme } from 'react-native-paper';
 import { Text } from '../../components/common/Text';
 import { useDispatch, useSelector } from 'react-redux';
-import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useRoute, RouteProp } from '@react-navigation/native';
 import { debounce } from 'lodash';
-import { ScreenSafeArea, Button } from '../../components/common';
+import { ScreenSafeArea, Button, Modal } from '../../components/common';
 
 import { AppDispatch, RootState } from '../../store';
 import { fetchFacilities, setFilters } from '../../store/facilitiesSlice';
 import { FacilityListView } from '../../components/features/facilities';
 import { StandardHeader } from '../../components/common/StandardHeader';
 import { FacilitiesStackParamList } from '../../navigation/types';
-import { useUserLocation } from '../../hooks';
+import { useLocationAvailability } from '../../hooks';
 
 const FILTERS = [
   { id: 'health_center', label: 'Health Centers', facet: 'type' },
@@ -38,17 +38,16 @@ export const FacilityDirectoryScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const filters = useSelector((state: RootState) => state.facilities.filters);
 
-  // Use the custom hook for location management
-  // It will automatically update the Redux store with the user's location
   const {
     permissionStatus,
+    permissionCanAskAgain,
+    locationServicesEnabled,
+    canUseLocation,
+    canRequestPermission,
+    needsSettings,
+    requestPermission,
     getCurrentLocation,
-    refreshPermissionStatus,
-  } = useUserLocation({
-    watch: false,
-    requestOnMount: false,
-    showDeniedAlert: false,
-  });
+  } = useLocationAvailability();
 
   // Load initial data
   useEffect(() => {
@@ -136,32 +135,67 @@ export const FacilityDirectoryScreen = () => {
     }
   }, [route.params?.filter, handleFilterPress]);
 
-  const showLocationPermissionBanner =
-    permissionStatus === 'denied' || permissionStatus === 'undetermined';
+  const [isPermissionModalVisible, setPermissionModalVisible] = useState(false);
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+  const [permissionModalError, setPermissionModalError] = useState<string | null>(null);
 
-  const handlePermissionPress = () => {
+  const locationServicesDisabled = locationServicesEnabled === false;
+  const showLocationPermissionBanner = !canUseLocation;
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.debug('FacilityDirectory location state', {
+        permissionStatus,
+        permissionCanAskAgain,
+        locationServicesEnabled,
+        canUseLocation,
+        canRequestPermission,
+        needsSettings,
+      });
+    }
+  }, [
+    permissionStatus,
+    permissionCanAskAgain,
+    locationServicesEnabled,
+    canUseLocation,
+    canRequestPermission,
+    needsSettings,
+  ]);
+
+  const handleModalClose = useCallback(() => {
+    setPermissionModalVisible(false);
+    setIsRequestingPermission(false);
+    setPermissionModalError(null);
+  }, []);
+
+  const handleEnableLocationPress = useCallback(() => {
+    setPermissionModalError(null);
+    setPermissionModalVisible(true);
+  }, []);
+
+  const handleAllowLocation = useCallback(async () => {
+    setIsRequestingPermission(true);
+    setPermissionModalError(null);
+    const granted = await requestPermission();
+    setIsRequestingPermission(false);
+
+    if (granted) {
+      setPermissionModalVisible(false);
+      getCurrentLocation();
+      return;
+    }
+
+    setPermissionModalError(
+      'Permission was not granted. You can try again or open Settings to enable location access.',
+    );
+  }, [getCurrentLocation, requestPermission]);
+
+  const handleOpenSettings = useCallback(() => {
+    handleModalClose();
     Linking.openSettings().catch(() => {});
-  };
+  }, [handleModalClose]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let isActive = true;
-
-      const refresh = async () => {
-        const status = await refreshPermissionStatus();
-        if (!isActive) return;
-        if (status === 'granted') {
-          getCurrentLocation();
-        }
-      };
-
-      refresh();
-
-      return () => {
-        isActive = false;
-      };
-    }, [getCurrentLocation, refreshPermissionStatus]),
-  );
+  const showSettingsFallback = needsSettings || locationServicesDisabled;
 
   return (
     <ScreenSafeArea style={styles.container} edges={['left', 'right', 'bottom']}>
@@ -265,8 +299,8 @@ export const FacilityDirectoryScreen = () => {
               </Text>
               <Button
                 variant="outline"
-                title="Open Settings"
-                onPress={handlePermissionPress}
+                title="Enable location"
+                onPress={handleEnableLocationPress}
                 contentStyle={styles.permissionButtonContent}
                 style={styles.permissionButton}
               />
@@ -274,9 +308,63 @@ export const FacilityDirectoryScreen = () => {
           )}
 
           <FacilityListView />
-        </View>
-      </KeyboardAvoidingView>
-    </ScreenSafeArea>
+          <Modal
+            visible={isPermissionModalVisible}
+            onDismiss={handleModalClose}
+            dismissable={!isRequestingPermission}
+            contentContainerStyle={styles.permissionModalContent}
+          >
+            <Text variant="titleLarge" style={[styles.permissionModalTitle, { color: theme.colors.onSurface }]}>
+              {locationServicesDisabled
+                ? 'Location services are off'
+                : needsSettings
+                ? 'Location permission required'
+                : 'Enable location'}
+            </Text>
+            <Text
+              variant="bodyMedium"
+              style={[
+                styles.permissionModalMessage,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              {locationServicesDisabled
+                ? 'Device location services are disabled. Turn them on in your phone settings to use nearby facilities.'
+                : needsSettings
+                ? 'Location access was denied permanently. Open Settings to grant the permission.'
+                : 'Allow this app to use your location so we can surface nearby facilities and services.'}
+            </Text>
+            {permissionModalError && (
+              <Text
+                variant="bodySmall"
+                style={[
+                  styles.permissionModalError,
+                  { color: theme.colors.error },
+                ]}
+              >
+                {permissionModalError}
+              </Text>
+            )}
+            <View style={styles.permissionModalActions}>
+              <Button
+                title={showSettingsFallback ? 'Open Settings' : 'Allow location'}
+                loading={!showSettingsFallback && isRequestingPermission}
+                onPress={showSettingsFallback ? handleOpenSettings : handleAllowLocation}
+                contentStyle={styles.permissionModalPrimaryContent}
+                style={styles.permissionModalPrimaryButton}
+              />
+              <Button
+                variant="text"
+                title="Not now"
+                onPress={handleModalClose}
+                disabled={isRequestingPermission}
+                style={styles.permissionModalSecondaryButton}
+              />
+            </View>
+          </Modal>
+      </View>
+    </KeyboardAvoidingView>
+  </ScreenSafeArea>
   );
 };
 
@@ -325,6 +413,37 @@ const styles = StyleSheet.create({
   },
   permissionButtonContent: {
     paddingHorizontal: 16,
+  },
+  permissionModalContent: {
+    width: '100%',
+    maxWidth: 420,
+  },
+  permissionModalTitle: {
+    marginBottom: 12,
+    fontWeight: '600',
+  },
+  permissionModalMessage: {
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  permissionModalError: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  permissionModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  permissionModalPrimaryButton: {
+    marginLeft: 8,
+  },
+  permissionModalPrimaryContent: {
+    paddingHorizontal: 20,
+  },
+  permissionModalSecondaryButton: {
+    marginLeft: 8,
   },
 });
 

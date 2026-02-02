@@ -7,6 +7,34 @@ const AUTH_SIGNUP_ENDPOINT = `${API_URL}/auth/signup`;
 
 const DEFAULT_TIMEOUT_MS = 15000;
 
+export interface BackendValidationIssue {
+  path: (string | number)[];
+  message: string;
+}
+
+export interface AuthApiError extends Error {
+  status?: number;
+  details?: BackendValidationIssue[];
+}
+
+const createAuthApiError = (message: string): AuthApiError => {
+  const error = new Error(message) as AuthApiError;
+  return error;
+};
+
+const sanitizeResponseBody = (body: unknown): unknown => {
+  if (!body || typeof body !== 'object') {
+    return body;
+  }
+  const clone = { ...body } as Record<string, unknown>;
+  ['password', 'token', 'passwordHash'].forEach((key) => {
+    if (key in clone) {
+      clone[key] = '[REDACTED]';
+    }
+  });
+  return clone;
+};
+
 const parseAuthResponse = (payload: unknown): { token: string; user: AuthUser } => {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Unexpected authentication response from the server.');
@@ -36,19 +64,53 @@ const getBackendMessage = (response: any, fallback: string, defaultPrefix: strin
   return fallback;
 };
 
-const handleAxiosError = (error: unknown, fallback: string, defaultPrefix: string) => {
-  if (isAxiosError(error)) {
-    if (error.response) {
-      return getBackendMessage(error.response, fallback, defaultPrefix);
-    }
-    if (error.request) {
-      return 'Unable to reach the authentication service. Please check your network connection.';
-    }
+const buildValidationDetails = (details: unknown): BackendValidationIssue[] | undefined => {
+  if (!Array.isArray(details)) {
+    return undefined;
   }
-  return fallback;
+  return details.map((detail) => {
+    const detailRecord = (detail as Record<string, unknown>) ?? {};
+    const rawPath = detailRecord.path;
+    const safePath = Array.isArray(rawPath) ? rawPath : [];
+    const rawMessage = detailRecord.message;
+    const message = typeof rawMessage === 'string' ? rawMessage : String(rawMessage ?? 'Invalid value');
+    return { path: safePath, message };
+  });
 };
 
-const buildRequest = async (endpoint: string, payload: Record<string, unknown>, fallbackMessage: string, defaultPrefix: string) => {
+const handleAxiosError = (error: unknown, fallback: string, defaultPrefix: string): AuthApiError => {
+  if (isAxiosError(error)) {
+    if (error.response) {
+      const status = error.response.status;
+      const payload = error.response.data;
+      if (__DEV__) {
+        console.warn('Authentication request failed', {
+          status,
+          payload: sanitizeResponseBody(payload),
+        });
+      }
+      const message = getBackendMessage(error.response, fallback, defaultPrefix);
+      const apiError = createAuthApiError(message);
+      apiError.status = status;
+      const details = buildValidationDetails(payload?.details);
+      if (details?.length) {
+        apiError.details = details;
+      }
+      return apiError;
+    }
+    if (error.request) {
+      return createAuthApiError('Unable to reach the authentication service. Please check your network connection.');
+    }
+  }
+  return createAuthApiError(fallback);
+};
+
+const buildRequest = async (
+  endpoint: string,
+  payload: Record<string, unknown>,
+  fallbackMessage: string,
+  defaultPrefix: string,
+) => {
   try {
     const response = await axios.post(endpoint, payload, {
       headers: { 'Content-Type': 'application/json' },
@@ -56,14 +118,14 @@ const buildRequest = async (endpoint: string, payload: Record<string, unknown>, 
     });
     return parseAuthResponse(response.data);
   } catch (error) {
-    const message = handleAxiosError(error, fallbackMessage, defaultPrefix);
-    throw new Error(message);
+    throw handleAxiosError(error, fallbackMessage, defaultPrefix);
   }
 };
 
 export interface SignInFormPayload {
   phoneNumber: string;
   password: string;
+  [key: string]: string;
 }
 
 export interface SignUpFormPayload {
@@ -72,6 +134,8 @@ export interface SignUpFormPayload {
   phoneNumber: string;
   dateOfBirth: string;
   password: string;
+  confirmPassword: string;
+  [key: string]: string;
 }
 
 export const signIn = (payload: SignInFormPayload) =>

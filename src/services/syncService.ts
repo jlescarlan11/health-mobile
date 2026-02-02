@@ -61,6 +61,167 @@ const logRateLimitHeaders = (headers?: Record<string, unknown>) => {
   }
 };
 
+type ProfileSnapshotData = Record<string, unknown> & {
+  dob?: string | null;
+};
+
+const parseProfileSnapshot = (value?: string | null, recordId?: string): ProfileSnapshotData | null => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed as ProfileSnapshotData;
+    }
+    console.warn(
+      `[Sync] Profile snapshot for record ${recordId ?? 'unknown'} is not an object; ignoring the snapshot.`,
+    );
+    return null;
+  } catch (error) {
+    console.warn(
+      `[Sync] Failed to parse profile snapshot for record ${recordId ?? 'unknown'}; saved snapshot will be skipped.`,
+      error,
+    );
+    return null;
+  }
+};
+
+const deriveAgeFromDob = (dob?: string | null): number | null => {
+  if (!dob) {
+    return null;
+  }
+  const parsed = new Date(dob);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  const now = new Date();
+  let age = now.getFullYear() - parsed.getFullYear();
+  const monthDiff = now.getMonth() - parsed.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < parsed.getDate())) {
+    age -= 1;
+  }
+  return age >= 0 ? age : null;
+};
+
+const formatIsoTimestamp = (value?: number | null): string | undefined => {
+  if (typeof value !== 'number') {
+    return undefined;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date.toISOString();
+};
+
+const formatValidationDetails = (details: unknown): string => {
+  if (!details) {
+    return 'none';
+  }
+  if (Array.isArray(details)) {
+    return details
+      .map((detail) => {
+        if (typeof detail === 'object' && detail !== null) {
+          const detailRecord = detail as Record<string, unknown>;
+          const pathValue = detailRecord.path;
+          const path = Array.isArray(pathValue)
+            ? pathValue
+                .filter((p) => typeof p === 'string' && p.length > 0)
+                .join('.')
+            : undefined;
+          const message =
+            typeof detailRecord.message === 'string'
+              ? detailRecord.message
+              : JSON.stringify(detail);
+          return path ? `${path}: ${message}` : message;
+        }
+        return String(detail);
+      })
+      .join(' | ');
+  }
+  if (typeof details === 'object' && details !== null) {
+    try {
+      return JSON.stringify(details);
+    } catch (error) {
+      return String(details);
+    }
+  }
+  return String(details);
+};
+
+const extractServerErrorInfo = (data: unknown) => {
+  if (!data) {
+    return { message: undefined, details: undefined as unknown };
+  }
+  if (typeof data === 'string') {
+    return { message: data, details: undefined as unknown };
+  }
+  if (typeof data === 'object' && data !== null) {
+    const record = data as Record<string, unknown>;
+    const message =
+      typeof record.error === 'string'
+        ? record.error
+        : typeof record.message === 'string'
+        ? record.message
+        : undefined;
+    return { message, details: record.details };
+  }
+  return { message: String(data), details: undefined as unknown };
+};
+
+const buildClinicalHistoryPayload = (record: DB.ClinicalHistoryRecord) => {
+  const profileSnapshot = parseProfileSnapshot(record.profile_snapshot, record.id);
+  const metadata: Record<string, unknown> = {
+    record_id: record.id,
+    recommended_level: record.recommended_level,
+    initial_symptoms: record.initial_symptoms,
+    clinical_soap: record.clinical_soap,
+    local_timestamp: record.timestamp,
+    source: record.isGuest ? 'mobile-guest' : 'mobile-clinical-history',
+  };
+
+  if (record.medical_justification) {
+    metadata.medical_justification = record.medical_justification;
+  }
+
+  if (profileSnapshot) {
+    metadata.profile_snapshot = profileSnapshot;
+  }
+
+  const payload: Record<string, unknown> = {
+    metadata,
+  };
+
+  const isoTimestamp = formatIsoTimestamp(record.timestamp);
+  if (isoTimestamp) {
+    payload.timestamp = isoTimestamp;
+  }
+
+  const summary =
+    record.initial_symptoms?.trim() || record.clinical_soap?.trim() || 'Clinical history record';
+  const profilePayload: Record<string, unknown> = {
+    summary,
+  };
+
+  if (profileSnapshot) {
+    const dobValue = typeof profileSnapshot.dob === 'string' ? profileSnapshot.dob : null;
+    const derivedAge = deriveAgeFromDob(dobValue);
+    if (derivedAge !== null) {
+      profilePayload.age = derivedAge.toString();
+    }
+  }
+
+  if (record.recommended_level) {
+    profilePayload.severity = record.recommended_level;
+  }
+
+  payload.profile = profilePayload;
+
+  return payload;
+};
+
 const scheduleNextSyncAfterDelay = async (
   delayMs: number,
   reason: string,
@@ -133,18 +294,11 @@ export const syncClinicalHistory = async () => {
       break;
     }
 
-    const payload = {
-      id: record.id,
-      timestamp: record.timestamp,
-      initial_symptoms: record.initial_symptoms,
-      recommended_level: record.recommended_level,
-      clinical_soap: record.clinical_soap,
-      medical_justification: record.medical_justification,
-      profile_snapshot: record.profile_snapshot ? JSON.parse(record.profile_snapshot) : null,
-    };
+    const payload = buildClinicalHistoryPayload(record);
+    const requestBody = { payload };
 
     try {
-      const response = await axios.post(`${API_URL}/history`, payload, {
+      const response = await axios.post(`${API_URL}/history`, requestBody, {
         timeout: 10000,
         headers: {
           'Content-Type': 'application/json',
@@ -220,8 +374,20 @@ export const syncClinicalHistory = async () => {
       }
 
       if (status >= 400) {
+        const serverInfo = extractServerErrorInfo(axiosError?.response?.data);
+        const validationDetails = formatValidationDetails(serverInfo.details);
+        const payloadSummary = JSON.stringify(
+          {
+            recordId: record.id,
+            timestamp: payload.timestamp,
+            initial_symptoms: record.initial_symptoms,
+            recommended_level: record.recommended_level,
+          },
+          null,
+          0,
+        );
         console.error(
-          `[Sync] Client error ${status} for record ${record.id}; skipping without retry.`,
+          `[Sync] Client error ${status} for record ${record.id}; message="${serverInfo.message ?? 'n/a'}"; validation=${validationDetails}; payloadSummary=${payloadSummary}`,
         );
         continue;
       }

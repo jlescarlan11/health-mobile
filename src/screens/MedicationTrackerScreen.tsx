@@ -23,10 +23,10 @@ import {
 import { AppDispatch } from '../store';
 import { Medication } from '../types';
 import { MedicationCard } from '../components/features/medication/MedicationCard';
-import { ScreenSafeArea, Button, SignInRequired, LoadingScreen } from '../components/common';
+import { ScreenSafeArea, Button, LoadingScreen } from '../components/common';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { theme as appTheme } from '../theme';
-import { useAuthStatus } from '../hooks';
+import { useAuthStatus, useRedirectToSettingsIfSignedOut } from '../hooks';
 
 // Simple Time Input Component since we can't add libraries
 interface TimeInputProps {
@@ -375,7 +375,9 @@ const MedicationTrackerScreen = () => {
   const { isSignedIn, isSessionLoaded } = useAuthStatus();
   const theme = useTheme();
 
-  if (!isSessionLoaded) {
+  useRedirectToSettingsIfSignedOut(isSignedIn, isSessionLoaded);
+
+  if (!isSessionLoaded || !isSignedIn) {
     return (
       <ScreenSafeArea
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -383,22 +385,6 @@ const MedicationTrackerScreen = () => {
       >
         <View style={styles.gatingWrapper}>
           <LoadingScreen />
-        </View>
-      </ScreenSafeArea>
-    );
-  }
-
-  if (!isSignedIn) {
-    return (
-      <ScreenSafeArea
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
-        edges={['top', 'left', 'right', 'bottom']}
-      >
-        <View style={styles.gatingWrapper}>
-          <SignInRequired
-            title="Sign in to use Medication Tracker"
-            description="Log and track your medications after signing in to keep everything in one place."
-          />
         </View>
       </ScreenSafeArea>
     );

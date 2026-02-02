@@ -11,9 +11,40 @@ import { useAppDispatch } from '../hooks/reduxHooks';
 import { setAuthError, setAuthLoading, setAuthToken, setAuthUser } from '../store/authSlice';
 import { storeAuthToken } from '../services/authSession';
 import { SignUpFormPayload, signUp } from '../services/authApi';
+import type { AuthApiError, BackendValidationIssue } from '../services/authApi';
 
 const REQUIRED_MIN_PASSWORD_LENGTH = 8;
-const DATE_PLACEHOLDER = 'YYYY-MM-DD';
+const DATE_PLACEHOLDER = '____-__-__';
+const DATE_FORMAT_EXAMPLE = 'YYYY-MM-DD';
+const DOB_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
+const FALLBACK_SIGNUP_ERROR = 'Could not create account. Please try again.';
+
+const mapValidationDetailsToFieldErrors = (details: BackendValidationIssue[]): Record<string, string> => {
+  const fieldErrors: Record<string, string> = {};
+  details.forEach((issue) => {
+    const [field] = issue.path;
+    if (typeof field === 'string') {
+      fieldErrors[field] = issue.message;
+    }
+  });
+  return fieldErrors;
+};
+
+const formatDateOfBirthInput = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (!digits) {
+    return '';
+  }
+  const parts: string[] = [];
+  parts.push(digits.slice(0, Math.min(4, digits.length)));
+  if (digits.length > 4) {
+    parts.push(digits.slice(4, Math.min(6, digits.length)));
+  }
+  if (digits.length > 6) {
+    parts.push(digits.slice(6));
+  }
+  return parts.filter(Boolean).join('-');
+};
 
 export const SignUpScreen = () => {
   const theme = useTheme();
@@ -29,18 +60,21 @@ export const SignUpScreen = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const trimmedPhoneNumber = phoneNumber.trim();
+  const trimmedDateOfBirth = dateOfBirth.trim();
   const hasValidName = firstName.trim().length > 0 && lastName.trim().length > 0;
   const hasValidPhone = trimmedPhoneNumber.length >= 7;
   const parsedDob = useMemo(() => {
-    if (!dateOfBirth.trim()) {
+    if (!trimmedDateOfBirth) {
       return null;
     }
-    const parsed = Date.parse(dateOfBirth.trim());
-    return Number.isNaN(parsed) ? null : parsed;
-  }, [dateOfBirth]);
-  const isDobValid = parsedDob !== null;
+    const parsed = Date.parse(trimmedDateOfBirth);
+    return Number.isNaN(parsed) ? null : new Date(parsed);
+  }, [trimmedDateOfBirth]);
+  const hasValidDobFormat = trimmedDateOfBirth.length > 0 && DOB_FORMAT.test(trimmedDateOfBirth);
+  const isDobValid = Boolean(parsedDob) && hasValidDobFormat;
   const isPasswordValid = password.length >= REQUIRED_MIN_PASSWORD_LENGTH;
   const doPasswordsMatch = password === confirmPassword && confirmPassword.length > 0;
   const isFormValid =
@@ -49,10 +83,20 @@ export const SignUpScreen = () => {
     isDobValid &&
     isPasswordValid &&
     doPasswordsMatch;
+  const firstNameHelperText = fieldErrors.firstName ?? (!firstName.trim() ? 'First name is required.' : undefined);
+  const lastNameHelperText = fieldErrors.lastName ?? (!lastName.trim() ? 'Last name is required.' : undefined);
+  const phoneHelperText =
+    fieldErrors.phoneNumber ?? (!hasValidPhone && phoneNumber.length > 0 ? 'Phone number must contain at least 7 digits.' : undefined);
+  const dateOfBirthHelperText =
+    fieldErrors.dateOfBirth ?? (trimmedDateOfBirth.length > 0 && !isDobValid ? `Enter a valid date (e.g. ${DATE_FORMAT_EXAMPLE}).` : undefined);
+  const passwordHelperText =
+    fieldErrors.password ?? (!isPasswordValid && password.length > 0 ? `Password must be at least ${REQUIRED_MIN_PASSWORD_LENGTH} characters.` : undefined);
+  const confirmPasswordHelperText =
+    fieldErrors.confirmPassword ?? (confirmPassword.length > 0 && !doPasswordsMatch ? 'Passwords must match.' : undefined);
 
   const integrationWarning = useMemo(
     () =>
-      'Signing up requires the backend /auth/signup endpoint. If it still enforces fields such as sex at birth, the request will fail until the contract is relaxed.',
+      'Signing up requires the backend /auth/signup endpoint. Any invalid fields will render inline messages so you can correct them before submitting again.',
     [],
   );
 
@@ -62,14 +106,16 @@ export const SignUpScreen = () => {
     }
     dispatch(setAuthLoading());
     setErrorMessage(null);
+    setFieldErrors({});
     setIsSubmitting(true);
     try {
       const payload: SignUpFormPayload = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         phoneNumber: trimmedPhoneNumber,
-        dateOfBirth: dateOfBirth.trim(),
+        dateOfBirth: parsedDob ? parsedDob.toISOString() : trimmedDateOfBirth,
         password,
+        confirmPassword,
       };
       const result = await signUp(payload);
       await storeAuthToken(result.token);
@@ -77,9 +123,14 @@ export const SignUpScreen = () => {
       dispatch(setAuthUser(result.user));
       navigation.goBack();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to create an account.';
-      dispatch(setAuthError(message));
-      setErrorMessage(message);
+      const apiError = error as AuthApiError;
+      if (apiError.details && apiError.details.length > 0) {
+        setFieldErrors(mapValidationDetailsToFieldErrors(apiError.details));
+      } else {
+        setFieldErrors({});
+        dispatch(setAuthError(FALLBACK_SIGNUP_ERROR));
+        setErrorMessage(FALLBACK_SIGNUP_ERROR);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -112,7 +163,7 @@ export const SignUpScreen = () => {
             mode="outlined"
             autoCapitalize="words"
           />
-          {!firstName.trim() && <HelperText type="error">First name is required.</HelperText>}
+          {firstNameHelperText && <HelperText type="error">{firstNameHelperText}</HelperText>}
         </View>
 
         <View style={styles.formField}>
@@ -123,7 +174,7 @@ export const SignUpScreen = () => {
             mode="outlined"
             autoCapitalize="words"
           />
-          {!lastName.trim() && <HelperText type="error">Last name is required.</HelperText>}
+          {lastNameHelperText && <HelperText type="error">{lastNameHelperText}</HelperText>}
         </View>
 
         <View style={styles.formField}>
@@ -134,9 +185,7 @@ export const SignUpScreen = () => {
             keyboardType="phone-pad"
             mode="outlined"
           />
-          {!hasValidPhone && phoneNumber.length > 0 && (
-            <HelperText type="error">Phone number must contain at least 7 digits.</HelperText>
-          )}
+          {phoneHelperText && <HelperText type="error">{phoneHelperText}</HelperText>}
         </View>
 
         <View style={styles.formField}>
@@ -144,12 +193,10 @@ export const SignUpScreen = () => {
             label="Date of birth"
             placeholder={DATE_PLACEHOLDER}
             value={dateOfBirth}
-            onChangeText={setDateOfBirth}
+            onChangeText={(value) => setDateOfBirth(formatDateOfBirthInput(value))}
             mode="outlined"
           />
-          {dateOfBirth.trim().length > 0 && !isDobValid && (
-            <HelperText type="error">Enter a valid date (e.g. {DATE_PLACEHOLDER}).</HelperText>
-          )}
+          {dateOfBirthHelperText && <HelperText type="error">{dateOfBirthHelperText}</HelperText>}
         </View>
 
         <View style={styles.formField}>
@@ -160,9 +207,7 @@ export const SignUpScreen = () => {
             secureTextEntry
             mode="outlined"
           />
-          {!isPasswordValid && password.length > 0 && (
-            <HelperText type="error">Password must be at least {REQUIRED_MIN_PASSWORD_LENGTH} characters.</HelperText>
-          )}
+          {passwordHelperText && <HelperText type="error">{passwordHelperText}</HelperText>}
         </View>
 
         <View style={styles.formField}>
@@ -173,9 +218,7 @@ export const SignUpScreen = () => {
             secureTextEntry
             mode="outlined"
           />
-          {confirmPassword.length > 0 && !doPasswordsMatch && (
-            <HelperText type="error">Passwords must match.</HelperText>
-          )}
+          {confirmPasswordHelperText && <HelperText type="error">{confirmPasswordHelperText}</HelperText>}
         </View>
 
         <Button

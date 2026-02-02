@@ -780,11 +780,11 @@ export class GeminiClient {
       TriageAssessmentRequestSchema.parse(requestPayload);
     } catch (error) {
       if (error instanceof ZodError) {
-        console.error('[GeminiClient] triageAssess request validation failed:', error.errors);
+        console.error('[GeminiClient] triageAssess request validation failed:', error.issues);
         throw new TriageContractError(
           'Invalid triage request payload',
           'VALIDATION_ERROR',
-          error.errors,
+          error.issues,
         );
       }
       throw error;

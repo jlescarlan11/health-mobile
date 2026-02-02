@@ -1,40 +1,52 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Card, useTheme, TextInput } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
-import { useSelector } from 'react-redux';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { RootStackScreenProps } from '../types/navigation';
-import { selectLatestClinicalNote } from '../store/offlineSlice';
-import { RootState } from '../store';
-import { Button, YakapLogo, CheckSymptomsLogo, FacilityDirectoryLogo, Text, ScreenSafeArea, Modal } from '../components/common';
-import { theme as appTheme } from '../theme';
-import { FeedItem, FeedItemData } from '../components/features/feed/FeedItem';
+import React, { useState } from "react";
+import { View, StyleSheet, ScrollView, Alert } from "react-native";
+import { Card, useTheme, TextInput } from "react-native-paper";
+import { useNavigation } from "@react-navigation/native";
+import { useSelector } from "react-redux";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { RootStackScreenProps } from "../types/navigation";
+import { selectLatestClinicalNote } from "../store/offlineSlice";
+import { RootState } from "../store";
+import {
+  Button,
+  YakapLogo,
+  CheckSymptomsLogo,
+  FacilityDirectoryLogo,
+  Text,
+  ScreenSafeArea,
+  Modal,
+} from "../components/common";
+import { theme as appTheme } from "../theme";
+import { FeedItem, FeedItemData } from "../components/features/feed/FeedItem";
+import { useAuthStatus } from "../hooks/useAuthStatus";
 
 // Import the new components
-import HomeHero from '../components/heroes/HomeHero';
-import { submitFeedbackReport } from '../services/apiConfig';
+import HomeHero from "../components/heroes/HomeHero";
+import { submitFeedbackReport } from "../services/apiConfig";
 
 type FeedbackReportStatus = {
-  type: 'success' | 'error';
+  type: "success" | "error";
   message: string;
 };
 
-type MainHomeNavigationProp = RootStackScreenProps<'Home'>['navigation'];
+type MainHomeNavigationProp = RootStackScreenProps<"Home">["navigation"];
 
 export const MainHomeScreen = () => {
   const navigation = useNavigation<MainHomeNavigationProp>();
   const theme = useTheme();
   const lastNote = useSelector(selectLatestClinicalNote);
   const { items } = useSelector((state: RootState) => state.feed);
+  const { isSignedIn } = useAuthStatus();
   const spacing = (theme as typeof appTheme).spacing ?? appTheme.spacing;
   const homeBottomPadding = spacing.lg * 2;
   const [isReportModalVisible, setReportModalVisible] = useState(false);
-  const [reportSubject, setReportSubject] = useState('');
-  const [reportDetails, setReportDetails] = useState('');
-  const [reportEmail, setReportEmail] = useState('');
+  const [reportSubject, setReportSubject] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportEmail, setReportEmail] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
-  const [reportStatus, setReportStatus] = useState<FeedbackReportStatus | null>(null);
+  const [reportStatus, setReportStatus] = useState<FeedbackReportStatus | null>(
+    null,
+  );
   const openReportModal = () => {
     setReportStatus(null);
     setReportModalVisible(true);
@@ -50,8 +62,8 @@ export const MainHomeScreen = () => {
     const trimmedMessage = reportDetails.trim();
     if (!trimmedMessage) {
       setReportStatus({
-        type: 'error',
-        message: 'Please describe the issue so we can help.',
+        type: "error",
+        message: "Please describe the issue so we can help.",
       });
       return;
     }
@@ -61,24 +73,24 @@ export const MainHomeScreen = () => {
 
     try {
       await submitFeedbackReport({
-        subject: reportSubject.trim() || 'Main home feedback',
+        subject: reportSubject.trim() || "Main home feedback",
         message: trimmedMessage,
         contactEmail: reportEmail.trim() || undefined,
-        context: { screen: 'MainHome' },
+        context: { screen: "MainHome" },
       });
 
       setReportStatus({
-        type: 'success',
-        message: 'Thank you! Your mock report is captured.',
+        type: "success",
+        message: "Thank you! Your mock report is captured.",
       });
 
-      setReportSubject('');
-      setReportDetails('');
-      setReportEmail('');
+      setReportSubject("");
+      setReportDetails("");
+      setReportEmail("");
     } catch {
       setReportStatus({
-        type: 'error',
-        message: 'Something went wrong. Please try again in a moment.',
+        type: "error",
+        message: "Something went wrong. Please try again in a moment.",
       });
     } finally {
       setReportSubmitting(false);
@@ -87,9 +99,17 @@ export const MainHomeScreen = () => {
 
   const handleViewReports = () => {
     Alert.alert(
-      'Reports coming soon',
-      'The admin reporting dashboard is not live yet, but this action will open it once available.',
+      "Reports coming soon",
+      "The admin reporting dashboard is not live yet, but this action will open it once available.",
     );
+  };
+
+  const navigateToSignIn = () => {
+    navigation.navigate("SignIn");
+  };
+
+  const navigateToSignUp = () => {
+    navigation.navigate("SignUp");
   };
 
   const FeatureCard = ({
@@ -114,24 +134,26 @@ export const MainHomeScreen = () => {
           styles.cardWide,
           {
             backgroundColor: theme.colors.surface,
-            shadowColor: '#000000',
+            shadowColor: "#000000",
             shadowOffset: { width: 0, height: 12 },
             shadowOpacity: 0.04,
             shadowRadius: 24,
             elevation: 3,
             borderWidth: 1,
-            borderColor: 'rgba(255, 255, 255, 0.6)',
+            borderColor: "rgba(255, 255, 255, 0.6)",
           },
         ]}
         onPress={onPress}
         testID={testID}
         accessible={true}
-        accessibilityLabel={`${title}${subtitle ? `, ${subtitle}` : ''}`}
+        accessibilityLabel={`${title}${subtitle ? `, ${subtitle}` : ""}`}
         accessibilityRole="button"
         accessibilityHint={`Double tap to navigate to ${title}`}
       >
         <Card.Content style={styles.cardContent}>
-          <View style={[styles.iconContainer, { backgroundColor: color }]}>{customIcon}</View>
+          <View style={[styles.iconContainer, { backgroundColor: color }]}>
+            {customIcon}
+          </View>
 
           <View style={styles.textContainer}>
             <Text
@@ -149,7 +171,10 @@ export const MainHomeScreen = () => {
               <Text
                 variant="bodyMedium"
                 numberOfLines={2}
-                style={[styles.cardSubtitle, { color: theme.colors.onSurfaceVariant }]}
+                style={[
+                  styles.cardSubtitle,
+                  { color: theme.colors.onSurfaceVariant },
+                ]}
               >
                 {subtitle}
               </Text>
@@ -170,9 +195,15 @@ export const MainHomeScreen = () => {
   const FeedbackCard = ({
     onReportIssuePress,
     onViewReportsPress,
+    isSignedIn,
+    onSignInPress = () => {},
+    onCreateAccountPress = () => {},
   }: {
     onReportIssuePress: () => void;
     onViewReportsPress: () => void;
+    isSignedIn: boolean;
+    onSignInPress?: () => void;
+    onCreateAccountPress?: () => void;
   }) => {
     return (
       <Card
@@ -182,13 +213,13 @@ export const MainHomeScreen = () => {
           styles.feedbackCard,
           {
             backgroundColor: theme.colors.surface,
-            shadowColor: '#000000',
+            shadowColor: "#000000",
             shadowOffset: { width: 0, height: 12 },
             shadowOpacity: 0.04,
             shadowRadius: 24,
             elevation: 3,
             borderWidth: 1,
-            borderColor: 'rgba(255, 255, 255, 0.6)',
+            borderColor: "rgba(255, 255, 255, 0.6)",
           },
         ]}
         accessible
@@ -199,31 +230,59 @@ export const MainHomeScreen = () => {
             <Text
               variant="titleLarge"
               numberOfLines={2}
-              style={[styles.feedbackCardTitle, { color: theme.colors.onSurface }]}
+              style={[
+                styles.feedbackCardTitle,
+                { color: theme.colors.onSurface },
+              ]}
             >
               Help us improve our app
             </Text>
             <Text
               variant="bodyMedium"
-              style={[styles.feedbackCardDescription, { color: theme.colors.onSurfaceVariant }]}
+              style={[
+                styles.feedbackCardDescription,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
             >
-              Share feedback, request improvements, or report bugs so we can prioritize fixes for you.
+              Share feedback, request improvements, or report bugs so we can
+              prioritize fixes for you.
             </Text>
           </View>
           <View style={styles.feedbackCardActions}>
-            <Button
-              variant="outline"
-              title="View reports"
-              onPress={onViewReportsPress}
-              accessibilityLabel="View reports"
-              style={styles.feedbackCardButton}
-            />
-            <Button
-              title="Report an issue"
-              onPress={onReportIssuePress}
-              accessibilityLabel="Report an issue"
-              style={styles.feedbackCardButton}
-            />
+            {isSignedIn ? (
+              <>
+                <Button
+                  variant="outline"
+                  title="View reports"
+                  onPress={onViewReportsPress}
+                  accessibilityLabel="View reports"
+                  style={styles.feedbackCardButton}
+                />
+                <Button
+                  title="Report an issue"
+                  onPress={onReportIssuePress}
+                  accessibilityLabel="Report an issue"
+                  style={styles.feedbackCardButton}
+                />
+              </>
+            ) : (
+              <>
+                <Button
+                  title="Sign In"
+                  variant="primary"
+                  onPress={onSignInPress}
+                  accessibilityLabel="Sign in"
+                  style={styles.feedbackCardButton}
+                />
+                <Button
+                  title="Create Account"
+                  variant="primary"
+                  onPress={onCreateAccountPress}
+                  accessibilityLabel="Create an account"
+                  style={styles.feedbackCardButton}
+                />
+              </>
+            )}
           </View>
         </Card.Content>
       </Card>
@@ -232,29 +291,32 @@ export const MainHomeScreen = () => {
 
   const MOCK_PREVIEW: FeedItemData[] = [
     {
-      id: '1',
-      title: 'Naga City Health Tips',
-      category: 'Prevention',
-      description: 'Protect yourself from seasonal illnesses with these local health guidelines.',
-      icon: 'shield-check-outline',
-      timestamp: '2 hours ago',
+      id: "1",
+      title: "Naga City Health Tips",
+      category: "Prevention",
+      description:
+        "Protect yourself from seasonal illnesses with these local health guidelines.",
+      icon: "shield-check-outline",
+      timestamp: "2 hours ago",
     },
     {
-      id: '2',
-      title: 'Upcoming Vaccination Drive',
-      category: 'Community',
-      description: "Free vaccinations available at the Naga City People's Hall this Friday.",
-      icon: 'needle',
-      timestamp: '5 hours ago',
+      id: "2",
+      title: "Upcoming Vaccination Drive",
+      category: "Community",
+      description:
+        "Free vaccinations available at the Naga City People's Hall this Friday.",
+      icon: "needle",
+      timestamp: "5 hours ago",
     },
   ];
 
-  const previewData = (items && items.length > 0) ? items.slice(0, 2) : MOCK_PREVIEW;
+  const previewData =
+    items && items.length > 0 ? items.slice(0, 2) : MOCK_PREVIEW;
 
   return (
     <ScreenSafeArea
       style={[styles.container, { backgroundColor: theme.colors.background }]}
-      edges={['top', 'left', 'right', 'bottom']}
+      edges={["top", "left", "right", "bottom"]}
       disableBottomInset
     >
       <ScrollView
@@ -263,7 +325,9 @@ export const MainHomeScreen = () => {
       >
         <HomeHero
           hasClinicalReport={!!lastNote}
-          onClinicalReportPress={() => navigation.navigate('ClinicalNote', {})}
+          onClinicalReportPress={() => navigation.navigate("ClinicalNote", {})}
+          isSignedIn={isSignedIn}
+          onSignInPress={navigateToSignIn}
         />
 
         <View style={styles.cardsContainer}>
@@ -274,7 +338,9 @@ export const MainHomeScreen = () => {
                 subtitle="AI-powered health assessment"
                 customIcon={<CheckSymptomsLogo width={44} height={44} />}
                 color={theme.colors.primary}
-                onPress={() => navigation.navigate('Check', { screen: 'CheckSymptom' })}
+                onPress={() =>
+                  navigation.navigate("Check", { screen: "CheckSymptom" })
+                }
               />
             </View>
             <View style={styles.bottomStackItem}>
@@ -284,7 +350,10 @@ export const MainHomeScreen = () => {
                 customIcon={<FacilityDirectoryLogo width={44} height={44} />}
                 color={theme.colors.secondary}
                 onPress={() =>
-                  navigation.navigate('Find', { screen: 'FacilityDirectory', params: {} })
+                  navigation.navigate("Find", {
+                    screen: "FacilityDirectory",
+                    params: {},
+                  })
                 }
               />
             </View>
@@ -294,7 +363,9 @@ export const MainHomeScreen = () => {
                 subtitle="Guided steps for free healthcare"
                 customIcon={<YakapLogo width={44} height={44} />}
                 color={theme.colors.primary}
-                onPress={() => navigation.navigate('YAKAP', { screen: 'YakapHome' })}
+                onPress={() =>
+                  navigation.navigate("YAKAP", { screen: "YakapHome" })
+                }
               />
             </View>
           </View>
@@ -303,6 +374,9 @@ export const MainHomeScreen = () => {
             <FeedbackCard
               onReportIssuePress={openReportModal}
               onViewReportsPress={handleViewReports}
+              isSignedIn={isSignedIn}
+              onSignInPress={navigateToSignIn}
+              onCreateAccountPress={navigateToSignUp}
             />
           </View>
 
@@ -318,14 +392,18 @@ export const MainHomeScreen = () => {
                 <FeedItem
                   key={item.id}
                   item={item}
-                  onPress={() => navigation.navigate('Home', { screen: 'HealthHub' })}
+                  onPress={() =>
+                    navigation.navigate("Home", { screen: "HealthHub" })
+                  }
                 />
               ))}
             </View>
             <View style={styles.seeMoreButtonContainer}>
               <Button
                 title="See More"
-                onPress={() => navigation.navigate('Home', { screen: 'HealthHub' })}
+                onPress={() =>
+                  navigation.navigate("Home", { screen: "HealthHub" })
+                }
                 style={styles.seeMoreButton}
                 accessibilityLabel="See more news"
               />
@@ -344,9 +422,13 @@ export const MainHomeScreen = () => {
           </Text>
           <Text
             variant="bodyMedium"
-            style={[styles.reportModalDescription, { color: theme.colors.onSurfaceVariant }]}
+            style={[
+              styles.reportModalDescription,
+              { color: theme.colors.onSurfaceVariant },
+            ]}
           >
-            Share details about bugs, confusing flows, or missing content so we can improve faster.
+            Share details about bugs, confusing flows, or missing content so we
+            can improve faster.
           </Text>
           <TextInput
             mode="outlined"
@@ -391,7 +473,7 @@ export const MainHomeScreen = () => {
               variant="bodySmall"
               style={[
                 styles.reportModalStatus,
-                reportStatus.type === 'success'
+                reportStatus.type === "success"
                   ? styles.reportModalStatusSuccess
                   : styles.reportModalStatusError,
               ]}
@@ -422,24 +504,27 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
     marginBottom: 24,
     paddingHorizontal: 4,
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#1F2937',
+    fontWeight: "800",
+    color: "#1F2937",
     letterSpacing: -0.5,
   },
   bottomStack: {
-    flexDirection: 'column',
+    flexDirection: "column",
     gap: 16,
   },
+  authCTAWrapper: {
+    marginTop: 8,
+  },
   bottomStackItem: {
-    width: '100%',
+    width: "100%",
   },
   feedSection: {
     marginTop: 24,
@@ -452,27 +537,27 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   seeMoreButton: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   card: {
     borderRadius: 24,
     borderWidth: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   cardWide: {
-    width: '100%',
+    width: "100%",
   },
   cardContent: {
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   iconContainer: {
     width: 48,
     height: 48,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 16,
   },
   textContainer: {
@@ -480,7 +565,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: -0.5,
     lineHeight: 22,
   },
@@ -492,8 +577,14 @@ const styles = StyleSheet.create({
   feedbackCardWrapper: {
     marginTop: 24,
   },
+  homeAuthCard: {
+    marginVertical: 0,
+  },
   feedbackCard: {
     paddingVertical: 8,
+  },
+  feedbackAuthCard: {
+    marginVertical: 0,
   },
   feedbackCardContent: {
     gap: 12,
@@ -502,22 +593,22 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   feedbackCardTitle: {
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: -0.5,
   },
   feedbackCardDescription: {
     lineHeight: 20,
   },
   feedbackCardActions: {
-    flexDirection: 'column',
+    flexDirection: "column",
     gap: 12,
     marginTop: 8,
   },
   feedbackCardButton: {
-    width: '100%',
+    width: "100%",
   },
   reportModalContainer: {
-    width: '100%',
+    width: "100%",
     maxWidth: 520,
     paddingHorizontal: 24,
   },
@@ -525,13 +616,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   reportModalTitle: {
-    fontWeight: '800',
+    fontWeight: "800",
   },
   reportModalDescription: {
-    color: '#4B5563',
+    color: "#4B5563",
   },
   reportModalField: {
-    width: '100%',
+    width: "100%",
   },
   reportModalDetails: {
     minHeight: 120,
@@ -544,10 +635,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   reportModalStatusSuccess: {
-    color: '#047857',
+    color: "#047857",
   },
   reportModalStatusError: {
-    color: '#B91C1C',
+    color: "#B91C1C",
   },
   reportModalSubmit: {
     marginTop: 4,

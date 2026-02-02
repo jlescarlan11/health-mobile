@@ -64,7 +64,6 @@ import {
   ProgressBar,
   MultiSelectChecklist,
   ScreenSafeArea,
-  SignInRequired,
   LoadingScreen,
 } from '../components/common';
 import { ChecklistOption, GroupedChecklistOption } from '../components/common/MultiSelectChecklist';
@@ -73,7 +72,7 @@ import {
   derivePrimarySymptom,
 } from '../utils/empatheticResponses';
 import { theme as appTheme } from '../theme';
-import { useAuthStatus } from '../hooks';
+import { useAuthStatus, useRedirectToSettingsIfSignedOut } from '../hooks';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -321,8 +320,8 @@ const SymptomAssessmentContent = () => {
   const inputCardRef = useRef<InputCardRef>(null);
   const keyboardHeight = useRef(new Animated.Value(0)).current;
   const keyboardScrollRaf = useRef<number | null>(null);
-  const { initialSymptom } = route.params || { initialSymptom: '' };
-  const trimmedInitialSymptom = (initialSymptom || '').trim();
+  const initialSymptom = route.params?.initialSymptom ?? '';
+  const trimmedInitialSymptom = initialSymptom.trim();
   const defaultPrimarySymptom = derivePrimarySymptom(initialSymptom);
   const hasInitialSymptom = trimmedInitialSymptom.length > 0;
   const safetyShortLabel = hasInitialSymptom ? 'those symptoms' : 'your current concern';
@@ -1079,9 +1078,197 @@ const SymptomAssessmentContent = () => {
     }
   };
 
+  const finalizeAssessment = useCallback(
+    async (
+      finalAnswers: Record<string, string>,
+      currentHistory: Message[],
+      preExtractedProfile?: AssessmentProfile,
+      precomputedAssessment?: any,
+    ) => {
+      if (isFinalizingRef.current) {
+        console.log('[Assessment] Already finalizing. Ignoring duplicate call.');
+        return;
+      }
+      isFinalizingRef.current = true;
+      console.log('[Assessment] Finalizing... Extracting Slots.');
+      setAssessmentStage('generating');
+
+      try {
+        let profile: AssessmentProfile;
+        if (preExtractedProfile) {
+          profile = reconcileClinicalProfileWithSlots(preExtractedProfile, incrementalSlots);
+        } else {
+          const extractedProfile = await geminiClient.extractClinicalProfile(
+            currentHistory.map((m) => ({
+              role: m.sender === 'user' ? 'user' : 'assistant',
+              text: m.text,
+            })),
+            {
+              currentProfileSummary: previousProfile?.summary,
+            },
+          );
+          profile = reconcileClinicalProfileWithSlots(extractedProfile, incrementalSlots);
+        }
+
+        console.log('\n╔═══ FINAL PROFILE EXTRACTION ═══╗');
+        console.log(JSON.stringify(profile, null, 2));
+        console.log(`╚${'═'.repeat(32)}╝\n`);
+
+        const formattedAnswers = fullPlan.map((q) => ({
+          question: q.text,
+          answer: finalAnswers[q.id] || 'Not answered',
+        }));
+
+        {
+          const finalizeTimestamp = Date.now();
+          appendMessagesToConversation([
+            composeAssistantMessage({
+              id: `finalize-${finalizeTimestamp}`,
+              body: '',
+              reason: 'Assessment complete and ready for handover.',
+              reasonSource: 'finalize-assessment',
+              nextAction: 'Please stay tuned while I prepare the recommendation for you.',
+              timestamp: finalizeTimestamp,
+              profile,
+              primarySymptom:
+                derivePrimarySymptom(initialSymptom, profile.summary) ?? defaultPrimarySymptom,
+            }),
+          ]);
+        }
+
+        const resolvedFlag = isRecentResolved || profile.is_recent_resolved === true;
+        const resolvedKeywordFinal = resolvedKeyword || profile.resolved_keyword;
+
+        setTimeout(() => {
+          dispatch(clearAssessmentState());
+          navigation.replace('Recommendation', {
+            assessmentData: {
+              symptoms: initialSymptom || '',
+              answers: formattedAnswers,
+              extractedProfile: {
+                ...profile,
+                is_recent_resolved: resolvedFlag,
+                resolved_keyword: resolvedKeywordFinal || undefined,
+              },
+              ...(precomputedAssessment ? { precomputedAssessment } : {}),
+            },
+            isRecentResolved: resolvedFlag,
+            resolvedKeyword: resolvedKeywordFinal || undefined,
+            guestMode: isGuestMode,
+          });
+        }, 1500);
+      } catch (err) {
+        console.error('[Assessment] Finalization failed:', err);
+        Alert.alert('Error', 'Could not process results. Please try again.');
+        isFinalizingRef.current = false;
+        setProcessing(false);
+        setTypingState(false);
+      }
+    },
+    [
+      incrementalSlots,
+      previousProfile,
+      fullPlan,
+      appendMessagesToConversation,
+      initialSymptom,
+      defaultPrimarySymptom,
+      isRecentResolved,
+      resolvedKeyword,
+      dispatch,
+      navigation,
+      isGuestMode,
+      setProcessing,
+      setTypingState,
+    ],
+  );
+
+  // --- OFFLINE LOGIC ---
+  const startOfflineTriage = () => {
+    const startNode = TriageEngine.getStartNode(triageFlow);
+    const introTimestamp = Date.now();
+    replaceMessagesDisplay([
+      composeAssistantMessage({
+        id: 'offline-intro',
+        body: "I'm having trouble connecting to the AI. I've switched to Offline Emergency Check.",
+        reason: 'Falling back to offline triage.',
+        reasonSource: 'offline-intro',
+        nextAction: 'Please answer the offline questions while the AI reconnects.',
+        timestamp: introTimestamp,
+        extra: { isOffline: true },
+      }),
+      composeAssistantMessage({
+        id: startNode.id,
+        body: startNode.text || '',
+        reason: 'Offline triage question',
+        reasonSource: 'offline-node',
+        nextAction: 'Please respond so we can continue the offline flow.',
+        timestamp: introTimestamp + 1,
+        extra: { isOffline: true },
+      }),
+    ]);
+    setIsOfflineMode(true);
+    setCurrentOfflineNodeId(startNode.id);
+    setLoading(false);
+  };
+
+  const handleOfflineLogic = useCallback(
+    (answer: string) => {
+      if (!currentOfflineNodeId) return;
+
+      setTypingState(true);
+      setTimeout(() => {
+        const result = TriageEngine.processStep(triageFlow, currentOfflineNodeId, answer);
+        if (result.isOutcome) {
+          setTypingState(false);
+          setProcessing(false);
+          processingRef.current = false;
+          navigation.replace('Recommendation', {
+            assessmentData: {
+              symptoms: initialSymptom || '',
+              answers: [
+                {
+                  question: 'Offline Triage',
+                  answer: result.node.recommendation?.reasoning || 'Completed',
+                },
+              ],
+              offlineRecommendation: result.node.recommendation,
+            },
+            guestMode: isGuestMode,
+          });
+        } else {
+          const nextNode = result.node;
+          appendMessagesToConversation([
+            composeAssistantMessage({
+              id: nextNode.id,
+              body: nextNode.text || '',
+              reason: 'Offline triage question generated.',
+              reasonSource: 'offline-triage',
+              nextAction: 'Please answer this offline question so we can move forward.',
+              timestamp: Date.now(),
+              extra: { isOffline: true },
+            }),
+          ]);
+          setCurrentOfflineNodeId(nextNode.id);
+          setTypingState(false);
+          setProcessing(false);
+          processingRef.current = false;
+        }
+      }, 500);
+    },
+    [
+      currentOfflineNodeId,
+      setTypingState,
+      setProcessing,
+      navigation,
+      initialSymptom,
+      isGuestMode,
+      appendMessagesToConversation,
+    ],
+  );
+
   // --- INTERACTION LOGIC ---
 
-    const handleNext = useCallback(
+  const handleNext = useCallback(
       async (answerOverride?: string, skipEmergencyCheck = false, messagesOverride?: Message[]) => {
         const answer = answerOverride || inputText;
         const trimmedAnswer = answer.trim();
@@ -1205,7 +1392,7 @@ const SymptomAssessmentContent = () => {
                 clarificationAttempts: clarificationCount,
                 patientContext: clinicalContext,
                 initialSymptom,
-                fullName,
+                fullName: fullName ?? undefined,
               };
   
               const response: TriageAssessmentResponse = await geminiClient.triageAssess(triageRequest);
@@ -1375,8 +1562,9 @@ const SymptomAssessmentContent = () => {
         setProcessing,
         setTypingState,
         appendMessageToConversation,
-      ],
-    );  const handleEmergencyVerification = (status: 'emergency' | 'recent' | 'denied') => {
+    ],
+  );
+  const handleEmergencyVerification = (status: 'emergency' | 'recent' | 'denied') => {
     if (!emergencyVerificationData) return;
 
     const { keyword, answer, currentQ, safetyCheck } = emergencyVerificationData;
@@ -1449,195 +1637,6 @@ const SymptomAssessmentContent = () => {
     }
   };
 
-  const finalizeAssessment = useCallback(
-    async (
-      finalAnswers: Record<string, string>,
-      currentHistory: Message[],
-      preExtractedProfile?: AssessmentProfile,
-      precomputedAssessment?: any,
-    ) => {
-      if (isFinalizingRef.current) {
-        console.log('[Assessment] Already finalizing. Ignoring duplicate call.');
-        return;
-      }
-      isFinalizingRef.current = true;
-      console.log('[Assessment] Finalizing... Extracting Slots.');
-      setAssessmentStage('generating');
-
-      try {
-        let profile: AssessmentProfile;
-        if (preExtractedProfile) {
-          profile = reconcileClinicalProfileWithSlots(preExtractedProfile, incrementalSlots);
-        } else {
-          const extractedProfile = await geminiClient.extractClinicalProfile(
-            currentHistory.map((m) => ({
-              role: m.sender === 'user' ? 'user' : 'assistant',
-              text: m.text,
-            })),
-            {
-              currentProfileSummary: previousProfile?.summary,
-            },
-          );
-          profile = reconcileClinicalProfileWithSlots(extractedProfile, incrementalSlots);
-        }
-
-        console.log('\n╔═══ FINAL PROFILE EXTRACTION ═══╗');
-        console.log(JSON.stringify(profile, null, 2));
-        console.log(`╚${'═'.repeat(32)}╝\n`);
-
-        // Format for Recommendation Screen
-        const formattedAnswers = fullPlan.map((q) => ({
-          question: q.text,
-          answer: finalAnswers[q.id] || 'Not answered',
-        }));
-
-        // Final transition message
-        {
-          const finalizeTimestamp = Date.now();
-          appendMessagesToConversation([
-            composeAssistantMessage({
-              id: `finalize-${finalizeTimestamp}`,
-              body: '',
-              reason: 'Assessment complete and ready for handover.',
-              reasonSource: 'finalize-assessment',
-              nextAction: 'Please stay tuned while I prepare the recommendation for you.',
-              timestamp: finalizeTimestamp,
-              profile,
-              primarySymptom:
-                derivePrimarySymptom(initialSymptom, profile.summary) ?? defaultPrimarySymptom,
-            }),
-          ]);
-        }
-
-        const resolvedFlag = isRecentResolved || profile.is_recent_resolved === true;
-        const resolvedKeywordFinal = resolvedKeyword || profile.resolved_keyword;
-
-        setTimeout(() => {
-          dispatch(clearAssessmentState());
-          navigation.replace('Recommendation', {
-            assessmentData: {
-              symptoms: initialSymptom || '',
-              answers: formattedAnswers,
-              extractedProfile: {
-                ...profile,
-                is_recent_resolved: resolvedFlag,
-                resolved_keyword: resolvedKeywordFinal || undefined,
-              },
-              ...(precomputedAssessment ? { precomputedAssessment } : {}),
-            },
-            isRecentResolved: resolvedFlag,
-            resolvedKeyword: resolvedKeywordFinal || undefined,
-            guestMode: isGuestMode,
-          });
-        }, 1500);
-      } catch (err) {
-        console.error('[Assessment] Finalization failed:', err);
-        Alert.alert('Error', 'Could not process results. Please try again.');
-        isFinalizingRef.current = false;
-        setProcessing(false);
-        setTypingState(false);
-      }
-    },
-    [
-      incrementalSlots,
-      previousProfile,
-      fullPlan,
-      appendMessagesToConversation,
-      initialSymptom,
-      defaultPrimarySymptom,
-      isRecentResolved,
-      resolvedKeyword,
-      dispatch,
-      navigation,
-      isGuestMode,
-      setProcessing,
-      setTypingState,
-    ],
-  );
-  // --- OFFLINE LOGIC ---
-  const startOfflineTriage = () => {
-    const startNode = TriageEngine.getStartNode(triageFlow);
-    const introTimestamp = Date.now();
-    replaceMessagesDisplay([
-      composeAssistantMessage({
-        id: 'offline-intro',
-        body: "I'm having trouble connecting to the AI. I've switched to Offline Emergency Check.",
-        reason: 'Falling back to offline triage.',
-        reasonSource: 'offline-intro',
-        nextAction: 'Please answer the offline questions while the AI reconnects.',
-        timestamp: introTimestamp,
-        extra: { isOffline: true },
-      }),
-      composeAssistantMessage({
-        id: startNode.id,
-        body: startNode.text || '',
-        reason: 'Offline triage question',
-        reasonSource: 'offline-node',
-        nextAction: 'Please respond so we can continue the offline flow.',
-        timestamp: introTimestamp + 1,
-        extra: { isOffline: true },
-      }),
-    ]);
-    setIsOfflineMode(true);
-    setCurrentOfflineNodeId(startNode.id);
-    setLoading(false);
-  };
-
-  const handleOfflineLogic = useCallback(
-    (answer: string) => {
-      if (!currentOfflineNodeId) return;
-
-      setTypingState(true);
-      setTimeout(() => {
-        const result = TriageEngine.processStep(triageFlow, currentOfflineNodeId, answer);
-        if (result.isOutcome) {
-          setTypingState(false);
-          setProcessing(false);
-          processingRef.current = false;
-          navigation.replace('Recommendation', {
-            assessmentData: {
-              symptoms: initialSymptom || '',
-              answers: [
-                {
-                  question: 'Offline Triage',
-                  answer: result.node.recommendation?.reasoning || 'Completed',
-                },
-              ],
-              offlineRecommendation: result.node.recommendation,
-            },
-            guestMode: isGuestMode,
-          });
-        } else {
-          const nextNode = result.node;
-          appendMessagesToConversation([
-            composeAssistantMessage({
-              id: nextNode.id,
-              body: nextNode.text || '',
-              reason: 'Offline triage question generated.',
-              reasonSource: 'offline-triage',
-              nextAction: 'Please answer this offline question so we can move forward.',
-              timestamp: Date.now(),
-              extra: { isOffline: true },
-            }),
-          ]);
-          setCurrentOfflineNodeId(nextNode.id);
-          setTypingState(false);
-          setProcessing(false);
-          processingRef.current = false;
-        }
-      }, 500);
-    },
-    [
-      currentOfflineNodeId,
-      setTypingState,
-      setProcessing,
-      navigation,
-      initialSymptom,
-      isGuestMode,
-      appendMessagesToConversation,
-    ],
-  );
-
   // --- UTILS ---
   const handleBack = useCallback(() => {
     if (isModeModalVisible) {
@@ -1707,7 +1706,7 @@ const SymptomAssessmentContent = () => {
   const renderMessage = useCallback(
     ({ item }: { item: Message }) => {
       const isAssistant = item.sender === 'assistant';
-      const isError = item.metadata?.isError;
+      const isError = Boolean(item.metadata?.isError);
 
       return (
         <View
@@ -1764,7 +1763,6 @@ const SymptomAssessmentContent = () => {
                 variant="outline"
                 onPress={() => handleRetry(item)}
                 title="Retry"
-                size="small"
                 style={{ marginTop: 8, borderColor: theme.colors.error }}
                 textColor={theme.colors.error}
               />
@@ -2345,7 +2343,9 @@ const SymptomAssessmentScreen = () => {
   const theme = useTheme() as MD3Theme & { spacing: Record<string, number> };
   const navigation = useNavigation<NavigationProp>();
 
-  if (!isSessionLoaded) {
+  useRedirectToSettingsIfSignedOut(isSignedIn, isSessionLoaded);
+
+  if (!isSessionLoaded || !isSignedIn) {
     return (
       <ScreenSafeArea
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -2354,23 +2354,6 @@ const SymptomAssessmentScreen = () => {
         <StandardHeader title="Assessment" showBackButton onBackPress={() => navigation.goBack()} />
         <View style={styles.gatingWrapper}>
           <LoadingScreen />
-        </View>
-      </ScreenSafeArea>
-    );
-  }
-
-  if (!isSignedIn) {
-    return (
-      <ScreenSafeArea
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
-        edges={['left', 'right', 'bottom']}
-      >
-        <StandardHeader title="Assessment" showBackButton onBackPress={() => navigation.goBack()} />
-        <View style={styles.gatingWrapper}>
-          <SignInRequired
-            title="Sign in to continue"
-            description="Symptom assessments require an account to save progress and your clinical history."
-          />
         </View>
       </ScreenSafeArea>
     );

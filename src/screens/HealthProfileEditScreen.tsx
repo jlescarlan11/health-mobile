@@ -8,9 +8,9 @@ import { StandardHeader } from '../components/common/StandardHeader';
 import { useAppSelector, useAppDispatch } from '../hooks/reduxHooks';
 import { updateProfile } from '../store/profileSlice';
 import { Button } from '../components/common/Button';
-import { SignInRequired, LoadingScreen, ScreenSafeArea } from '../components/common';
+import { LoadingScreen, ScreenSafeArea } from '../components/common';
 import { Text } from '../components';
-import { useAuthStatus } from '../hooks';
+import { useAuthStatus, useRedirectToSettingsIfSignedOut } from '../hooks';
 import { theme as appTheme } from '../theme';
 
 const HealthProfileEditContent = () => {
@@ -501,7 +501,9 @@ export const HealthProfileEditScreen = () => {
   const { isSignedIn, isSessionLoaded } = useAuthStatus();
   const theme = useTheme();
 
-  if (!isSessionLoaded) {
+  useRedirectToSettingsIfSignedOut(isSignedIn, isSessionLoaded);
+
+  if (!isSessionLoaded || !isSignedIn) {
     return (
       <ScreenSafeArea
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -510,23 +512,6 @@ export const HealthProfileEditScreen = () => {
         <StandardHeader title="Edit Health Profile" showBackButton />
         <View style={styles.loadingWrapper}>
           <LoadingScreen />
-        </View>
-      </ScreenSafeArea>
-    );
-  }
-
-  if (!isSignedIn) {
-    return (
-      <ScreenSafeArea
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
-        edges={['left', 'right', 'bottom']}
-      >
-        <StandardHeader title="Edit Health Profile" showBackButton />
-        <View style={styles.signInRequiredWrapper}>
-          <SignInRequired
-            title="Sign in to edit your profile"
-            description="Sign in to manage your personal health information and unlock your Health ID."
-          />
         </View>
       </ScreenSafeArea>
     );

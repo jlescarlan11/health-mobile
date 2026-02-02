@@ -20,4 +20,4 @@ export * from './TeleconsultBadge';
 export * from './Text';
 export * from './FeatureChip';
 export * from './ScreenSafeArea';
-export * from './SignInRequired';
+export * from './AuthRequiredCard';

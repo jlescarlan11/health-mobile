@@ -21,14 +21,13 @@ import {
   EmergencyActions,
   FeatureChip,
   ScreenSafeArea,
-  SignInRequired,
   LoadingScreen,
 } from '../../components/common';
 import { chipLayoutStyles } from '../../components/common/chipLayout';
 import { detectEmergency } from '../../services/emergencyDetector';
 import { detectMentalHealthCrisis } from '../../services/mentalHealthDetector';
 import { setHighRisk, clearAssessmentState, setSymptomDraft } from '../../store/navigationSlice';
-import { useKeyboard, useAuthStatus } from '../../hooks';
+import { useKeyboard, useAuthStatus, useRedirectToSettingsIfSignedOut } from '../../hooks';
 
 type NavigationProp = CheckStackScreenProps<'CheckSymptom'>['navigation'];
 
@@ -375,7 +374,9 @@ const CheckSymptomScreen = () => {
   const { isSignedIn, isSessionLoaded } = useAuthStatus();
   const theme = useTheme();
 
-  if (!isSessionLoaded) {
+  useRedirectToSettingsIfSignedOut(isSignedIn, isSessionLoaded);
+
+  if (!isSessionLoaded || !isSignedIn) {
     return (
       <ScreenSafeArea
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -383,22 +384,6 @@ const CheckSymptomScreen = () => {
       >
         <View style={styles.gatingWrapper}>
           <LoadingScreen />
-        </View>
-      </ScreenSafeArea>
-    );
-  }
-
-  if (!isSignedIn) {
-    return (
-      <ScreenSafeArea
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
-        edges={['left', 'right', 'bottom']}
-      >
-        <View style={styles.gatingWrapper}>
-          <SignInRequired
-            title="Sign in to check symptoms"
-            description="Symptom guidance is tied to authenticated care. Sign in or create an account to continue."
-          />
         </View>
       </ScreenSafeArea>
     );

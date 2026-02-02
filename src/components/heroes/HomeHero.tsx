@@ -9,9 +9,16 @@ import { selectFirstName } from '../../store/profileSlice';
 interface HomeHeroProps {
   hasClinicalReport?: boolean;
   onClinicalReportPress?: () => void;
+  isSignedIn?: boolean;
+  onSignInPress?: () => void;
 }
 
-const HomeHero: React.FC<HomeHeroProps> = ({ hasClinicalReport, onClinicalReportPress }) => {
+const HomeHero: React.FC<HomeHeroProps> = ({
+  hasClinicalReport,
+  onClinicalReportPress,
+  isSignedIn = true,
+  onSignInPress,
+}) => {
   const theme = useTheme();
   const firstName = useSelector(selectFirstName);
 
@@ -25,6 +32,52 @@ const HomeHero: React.FC<HomeHeroProps> = ({ hasClinicalReport, onClinicalReport
 
   const greeting = firstName ? `Kamusta, ${firstName}!` : 'Kamusta!';
 
+  const renderSubtitle = () => {
+    const subtitleStyle = [styles.subtitle, { color: theme.colors.onSurface }];
+
+    if (!isSignedIn) {
+      return (
+        <Text style={subtitleStyle}>
+          <Text
+            style={[
+              styles.subtitleLink,
+              { color: theme.colors.primary },
+            ]}
+            onPress={onSignInPress}
+            accessibilityRole="link"
+          >
+            Sign in
+          </Text>{' '}
+          to access full features and services
+        </Text>
+      );
+    }
+
+    if (hasClinicalReport && onClinicalReportPress) {
+      return (
+        <Text style={subtitleStyle}>
+          Your{' '}
+          <Text
+            style={{
+              textDecorationLine: 'underline',
+              color: theme.colors.primary,
+              fontWeight: '700',
+            }}
+            onPress={onClinicalReportPress}
+            role="link"
+          >
+            clinical report
+          </Text>{' '}
+          is ready
+        </Text>
+      );
+    }
+
+    return (
+      <Text style={subtitleStyle}>How can we help you today?</Text>
+    );
+  };
+
   return (
     <HeroSection colors={[theme.colors.primaryContainer, theme.colors.background]} height={280}>
       <View style={styles.container}>
@@ -33,27 +86,7 @@ const HomeHero: React.FC<HomeHeroProps> = ({ hasClinicalReport, onClinicalReport
             {formattedDate}
           </Text>
           <Text style={[styles.greeting, { color: theme.colors.primary }]}>{greeting}</Text>
-          {hasClinicalReport && onClinicalReportPress ? (
-            <Text style={[styles.subtitle, { color: theme.colors.onSurface }]}>
-              Your{' '}
-              <Text
-                style={{
-                  textDecorationLine: 'underline',
-                  color: theme.colors.primary,
-                  fontWeight: '700',
-                }}
-                onPress={onClinicalReportPress}
-                role="link"
-              >
-                clinical report
-              </Text>{' '}
-              is ready
-            </Text>
-          ) : (
-            <Text style={[styles.subtitle, { color: theme.colors.onSurface }]}>
-              How can we help you today?
-            </Text>
-          )}
+          {renderSubtitle()}
         </View>
       </View>
     </HeroSection>
@@ -89,6 +122,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     lineHeight: 30,
     opacity: 0.9,
+  },
+  subtitleLink: {
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
 });
 

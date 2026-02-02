@@ -95,4 +95,3 @@ const authSlice = createSlice({
 
 export const { setAuthToken, setAuthUser, setAuthLoading, setAuthError } = authSlice.actions;
 export default authSlice.reducer;
-export type { AuthState };
