@@ -1,40 +1,61 @@
 import * as SecureStore from 'expo-secure-store';
 
-const AUTH_TOKEN_STORAGE_KEY = 'health_mobile_auth_token';
+const AUTH_SESSION_STORAGE_KEY = 'health_mobile_auth_session';
 
-/**
- * Retrieves the JWT that represents the current authenticated session.
- * Returns null when no token is cached or SecureStore access fails.
- */
-export const getStoredAuthToken = async (): Promise<string | null> => {
+export interface AuthSessionTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+const readStoredSession = async (): Promise<AuthSessionTokens | null> => {
   try {
-    return await SecureStore.getItemAsync(AUTH_TOKEN_STORAGE_KEY);
+    const stored = await SecureStore.getItemAsync(AUTH_SESSION_STORAGE_KEY);
+    if (!stored) {
+      return null;
+    }
+    return JSON.parse(stored) as AuthSessionTokens;
   } catch (error) {
-    console.error('[AuthSession] Failed to load stored auth token:', error);
+    console.error('[AuthSession] Failed to read stored auth session:', error);
     return null;
   }
 };
 
 /**
- * Persists the provided JWT so background sync helpers can reuse it.
+ * Retrieves the most recently saved access token or null if none is stored.
  */
-export const storeAuthToken = async (token: string): Promise<void> => {
+export const getStoredAuthToken = async (): Promise<string | null> => {
+  const session = await readStoredSession();
+  return session?.accessToken ?? null;
+};
+
+/**
+ * Retrieves the refresh token associated with the current session.
+ */
+export const getStoredRefreshToken = async (): Promise<string | null> => {
+  const session = await readStoredSession();
+  return session?.refreshToken ?? null;
+};
+
+/**
+ * Persists both access and refresh tokens.
+ */
+export const storeAuthSession = async (tokens: AuthSessionTokens): Promise<void> => {
   try {
-    await SecureStore.setItemAsync(AUTH_TOKEN_STORAGE_KEY, token);
+    await SecureStore.setItemAsync(AUTH_SESSION_STORAGE_KEY, JSON.stringify(tokens));
   } catch (error) {
-    console.error('[AuthSession] Failed to persist auth token:', error);
+    console.error('[AuthSession] Failed to persist auth session:', error);
   }
 };
 
 /**
- * Removes the cached token, typically when we detect authentication failure.
+ * Clears the cached session tokens.
  */
-export const clearStoredAuthToken = async (): Promise<void> => {
+export const clearStoredAuthSession = async (): Promise<void> => {
   try {
-    await SecureStore.deleteItemAsync(AUTH_TOKEN_STORAGE_KEY);
+    await SecureStore.deleteItemAsync(AUTH_SESSION_STORAGE_KEY);
   } catch (error) {
-    console.error('[AuthSession] Failed to clear stored auth token:', error);
+    console.error('[AuthSession] Failed to clear stored auth session:', error);
   }
 };
 
-export const AUTH_TOKEN_KEY = AUTH_TOKEN_STORAGE_KEY;
+export const AUTH_TOKEN_KEY = AUTH_SESSION_STORAGE_KEY;

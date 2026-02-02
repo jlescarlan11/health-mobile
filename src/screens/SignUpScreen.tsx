@@ -9,14 +9,18 @@ import { Text } from '../components/common/Text';
 import { useAdaptiveUI } from '../hooks/useAdaptiveUI';
 import { useAppDispatch } from '../hooks/reduxHooks';
 import { setAuthError, setAuthLoading, setAuthToken, setAuthUser } from '../store/authSlice';
-import { storeAuthToken } from '../services/authSession';
+import { storeAuthSession } from '../services/authSession';
 import { SignUpFormPayload, signUp } from '../services/authApi';
 import type { AuthApiError, BackendValidationIssue } from '../services/authApi';
+import {
+  DATE_PLACEHOLDER,
+  formatDateOfBirthInput,
+  formatIsoDate,
+  parseIsoDateString,
+  validateIsoDateValue,
+} from '../utils/dobUtils';
 
 const REQUIRED_MIN_PASSWORD_LENGTH = 8;
-const DATE_PLACEHOLDER = '____-__-__';
-const DATE_FORMAT_EXAMPLE = 'YYYY-MM-DD';
-const DOB_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 const FALLBACK_SIGNUP_ERROR = 'Could not create account. Please try again.';
 
 const mapValidationDetailsToFieldErrors = (details: BackendValidationIssue[]): Record<string, string> => {
@@ -28,22 +32,6 @@ const mapValidationDetailsToFieldErrors = (details: BackendValidationIssue[]): R
     }
   });
   return fieldErrors;
-};
-
-const formatDateOfBirthInput = (value: string) => {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-  if (!digits) {
-    return '';
-  }
-  const parts: string[] = [];
-  parts.push(digits.slice(0, Math.min(4, digits.length)));
-  if (digits.length > 4) {
-    parts.push(digits.slice(4, Math.min(6, digits.length)));
-  }
-  if (digits.length > 6) {
-    parts.push(digits.slice(6));
-  }
-  return parts.filter(Boolean).join('-');
 };
 
 export const SignUpScreen = () => {
@@ -70,11 +58,11 @@ export const SignUpScreen = () => {
     if (!trimmedDateOfBirth) {
       return null;
     }
-    const parsed = Date.parse(trimmedDateOfBirth);
-    return Number.isNaN(parsed) ? null : new Date(parsed);
+    return parseIsoDateString(trimmedDateOfBirth);
   }, [trimmedDateOfBirth]);
-  const hasValidDobFormat = trimmedDateOfBirth.length > 0 && DOB_FORMAT.test(trimmedDateOfBirth);
-  const isDobValid = Boolean(parsedDob) && hasValidDobFormat;
+  const dobValidationError =
+    trimmedDateOfBirth.length > 0 ? validateIsoDateValue(trimmedDateOfBirth) : null;
+  const isDobValid = Boolean(parsedDob) && !dobValidationError;
   const isPasswordValid = password.length >= REQUIRED_MIN_PASSWORD_LENGTH;
   const doPasswordsMatch = password === confirmPassword && confirmPassword.length > 0;
   const isFormValid =
@@ -87,8 +75,7 @@ export const SignUpScreen = () => {
   const lastNameHelperText = fieldErrors.lastName ?? (!lastName.trim() ? 'Last name is required.' : undefined);
   const phoneHelperText =
     fieldErrors.phoneNumber ?? (!hasValidPhone && phoneNumber.length > 0 ? 'Phone number must contain at least 7 digits.' : undefined);
-  const dateOfBirthHelperText =
-    fieldErrors.dateOfBirth ?? (trimmedDateOfBirth.length > 0 && !isDobValid ? `Enter a valid date (e.g. ${DATE_FORMAT_EXAMPLE}).` : undefined);
+  const dateOfBirthHelperText = fieldErrors.dateOfBirth ?? dobValidationError;
   const passwordHelperText =
     fieldErrors.password ?? (!isPasswordValid && password.length > 0 ? `Password must be at least ${REQUIRED_MIN_PASSWORD_LENGTH} characters.` : undefined);
   const confirmPasswordHelperText =
@@ -113,13 +100,16 @@ export const SignUpScreen = () => {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         phoneNumber: trimmedPhoneNumber,
-        dateOfBirth: parsedDob ? parsedDob.toISOString() : trimmedDateOfBirth,
+        dateOfBirth: parsedDob ? formatIsoDate(parsedDob) : trimmedDateOfBirth,
         password,
         confirmPassword,
       };
       const result = await signUp(payload);
-      await storeAuthToken(result.token);
-      dispatch(setAuthToken(result.token));
+      await storeAuthSession({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+      dispatch(setAuthToken(result.accessToken));
       dispatch(setAuthUser(result.user));
       navigation.goBack();
     } catch (error) {

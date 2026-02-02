@@ -9,6 +9,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from '../../common/Text';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { Button } from '../../common';
+import { formatIsoDateForDisplay } from '../../../utils/dobUtils';
 
 export const DigitalIDCard: React.FC = () => {
   const theme = useTheme();
@@ -350,18 +351,7 @@ function formatDobForDisplay(dob?: string | null): string {
   if (!dob) {
     return '';
   }
-
-  const parts = dob.split('-');
-  if (parts.length !== 3) {
-    return dob;
-  }
-
-  const [year, month, day] = parts;
-  if (!month || !day || !year) {
-    return dob;
-  }
-
-  return `${month.padStart(2, '0')}/${day.padStart(2, '0')}/${year}`;
+  return formatIsoDateForDisplay(dob);
 }
 
 function formatListForDisplay(items?: string[] | null): string {

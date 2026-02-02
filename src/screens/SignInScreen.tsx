@@ -9,7 +9,7 @@ import { Text } from '../components/common/Text';
 import { useAdaptiveUI } from '../hooks/useAdaptiveUI';
 import { useAppDispatch } from '../hooks/reduxHooks';
 import { setAuthError, setAuthLoading, setAuthToken, setAuthUser } from '../store/authSlice';
-import { storeAuthToken } from '../services/authSession';
+import { storeAuthSession } from '../services/authSession';
 import { SignInFormPayload, signIn } from '../services/authApi';
 
 const MIN_PHONE_LENGTH = 7;
@@ -46,8 +46,11 @@ export const SignInScreen = () => {
     try {
       const payload: SignInFormPayload = { phoneNumber: trimmedPhoneNumber, password };
       const result = await signIn(payload);
-      await storeAuthToken(result.token);
-      dispatch(setAuthToken(result.token));
+      await storeAuthSession({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+      dispatch(setAuthToken(result.accessToken));
       dispatch(setAuthUser(result.user));
       navigation.goBack();
     } catch (error) {

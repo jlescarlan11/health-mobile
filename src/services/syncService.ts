@@ -302,7 +302,6 @@ export const syncClinicalHistory = async () => {
         timeout: 10000,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
       });
 

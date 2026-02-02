@@ -1,5 +1,16 @@
-import React, { useMemo, useCallback } from 'react';
-import { StyleSheet, ScrollView, View, StyleProp, TextStyle, ViewStyle } from 'react-native';
+import React, { useMemo, useCallback, useState } from 'react';
+import {
+  Alert,
+  ActivityIndicator,
+  StyleSheet,
+  ScrollView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleProp,
+  TextStyle,
+  ViewStyle,
+} from 'react-native';
 import { useTheme, List, Surface, Divider, Switch } from 'react-native-paper';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { StandardHeader } from '../components/common/StandardHeader';
@@ -10,6 +21,9 @@ import { useAdaptiveUI } from '../hooks/useAdaptiveUI';
 import { DigitalIDCard } from '../components';
 import { AuthRequiredCard } from '../components/common';
 import { theme as appTheme } from '../theme';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { signOutAsync } from '../store/authSlice';
 
 export const SettingsScreen = () => {
   const theme = useTheme();
@@ -25,6 +39,36 @@ export const SettingsScreen = () => {
     isPWD: false,
     isChronic: false,
   };
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const router = useRouter();
+
+  const performSignOut = useCallback(async () => {
+    setIsSigningOut(true);
+    try {
+      await dispatch(signOutAsync()).unwrap();
+      router.replace('/SignIn');
+    } catch (error) {
+      console.error('Sign out failed:', error);
+      Alert.alert('Error', 'Failed to sign out. Please try again.');
+    } finally {
+      setIsSigningOut(false);
+    }
+  }, [dispatch, router]);
+
+  const handleSignOut = useCallback(() => {
+    if (isSigningOut) {
+      return;
+    }
+
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: performSignOut,
+      },
+    ]);
+  }, [isSigningOut, performSignOut]);
 
   const scaledSubheaderStyle = [
     styles.subheader,
@@ -150,6 +194,34 @@ export const SettingsScreen = () => {
             </Surface>
           </List.Section>
         </View>
+        {isSignedIn && (
+          <>
+            <View style={styles.signOutSpacer} />
+            <View style={styles.signOutSection}>
+              <TouchableOpacity
+                style={[styles.signOutCard, isSigningOut && styles.signOutCardDisabled]}
+                activeOpacity={0.9}
+                onPress={handleSignOut}
+                disabled={isSigningOut}
+              >
+                <View style={styles.signOutContent}>
+                  <MaterialCommunityIcons
+                    name="logout"
+                    size={24}
+                    color="#DC2626"
+                    style={styles.signOutIcon}
+                  />
+                  <Text style={styles.signOutText}>Sign Out</Text>
+                </View>
+                {isSigningOut ? (
+                  <ActivityIndicator size="small" color="#DC2626" />
+                ) : (
+                  <MaterialCommunityIcons name="chevron-right" size={20} color="#9CA3AF" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </ScrollView>
     </ScreenSafeArea>
   );
@@ -237,6 +309,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingTop: 8,
+    flexGrow: 1,
   },
   surface: {
     borderRadius: 16,
@@ -277,5 +350,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 12,
     fontWeight: '600',
+  },
+  signOutSpacer: {
+    flex: 1,
+  },
+  signOutSection: {
+    paddingTop: 24,
+    paddingBottom: 32,
+  },
+  signOutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    borderRadius: 12,
+    padding: 16,
+  },
+  signOutCardDisabled: {
+    opacity: 0.6,
+  },
+  signOutContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  signOutIcon: {
+    marginRight: 12,
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#DC2626',
   },
 });

@@ -35,20 +35,47 @@ const sanitizeResponseBody = (body: unknown): unknown => {
   return clone;
 };
 
-const parseAuthResponse = (payload: unknown): { token: string; user: AuthUser } => {
+export interface AuthResponse {
+  user: AuthUser;
+  accessToken: string;
+  refreshToken: string;
+}
+
+const parseAuthResponse = (payload: unknown): AuthResponse => {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Unexpected authentication response from the server.');
   }
 
-  const data = payload as Record<string, unknown> & { token?: string; user?: AuthUser };
-  if (!data.token || typeof data.token !== 'string') {
-    throw new Error('Authentication succeeded but no token was returned.');
+  const data = payload as Record<string, unknown> & {
+    accessToken?: string;
+    refreshToken?: string;
+    token?: string;
+    user?: AuthUser;
+  };
+
+  const accessToken =
+    typeof data.accessToken === 'string'
+      ? data.accessToken
+      : typeof data.token === 'string'
+      ? data.token
+      : null;
+  if (!accessToken) {
+    throw new Error('Authentication succeeded but no access token was returned.');
   }
+
+  if (!data.refreshToken || typeof data.refreshToken !== 'string') {
+    throw new Error('Authentication succeeded but no refresh token was returned.');
+  }
+
   if (!data.user || typeof data.user !== 'object') {
     throw new Error('Authentication succeeded but user profile data is missing.');
   }
 
-  return { token: data.token, user: data.user as AuthUser };
+  return {
+    accessToken,
+    refreshToken: data.refreshToken,
+    user: data.user as AuthUser,
+  };
 };
 
 const getBackendMessage = (response: any, fallback: string, defaultPrefix: string) => {

@@ -1,6 +1,7 @@
-import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { fetchUserProfile, ProfileServiceResponse } from '../services/profileService';
 
-interface ProfileState {
+export interface ProfileState {
   fullName: string | null;
   /** @deprecated Use for cloud sync/future features only; currently unmanaged in UI */
   username: string | null;
@@ -14,9 +15,11 @@ interface ProfileState {
   allergies: string[];
   surgicalHistory: string | null;
   familyHistory: string | null;
+  loading: boolean;
+  lastSyncedAt: number | null;
 }
 
-const initialState: ProfileState = {
+const createInitialProfileState = (): ProfileState => ({
   fullName: null,
   username: null,
   phoneNumber: null,
@@ -28,7 +31,27 @@ const initialState: ProfileState = {
   allergies: [],
   surgicalHistory: null,
   familyHistory: null,
-};
+  loading: false,
+  lastSyncedAt: null,
+});
+
+const initialState = createInitialProfileState();
+
+export const fetchProfileFromServer = createAsyncThunk<
+  ProfileServiceResponse,
+  void,
+  { rejectValue: string }
+>('profile/fetchFromServer', async (_, { rejectWithValue }) => {
+  try {
+    return await fetchUserProfile();
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Failed to load profile from the server. Please try again later.';
+    return rejectWithValue(message);
+  }
+});
 
 const profileSlice = createSlice({
   name: 'profile',
@@ -91,17 +114,37 @@ const profileSlice = createSlice({
       state.familyHistory = action.payload;
     },
     clearProfile: (state) => {
-      state.fullName = null;
-      state.username = null;
-      state.phoneNumber = null;
-      state.dob = null;
-      state.sex = null;
-      state.bloodType = null;
-      state.chronicConditions = [];
-      state.allergies = [];
-      state.surgicalHistory = null;
-      state.familyHistory = null;
+      Object.assign(state, createInitialProfileState());
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchProfileFromServer.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchProfileFromServer.fulfilled, (state, action) => {
+        const response = action.payload;
+        const derivedFullName =
+          response.firstName && response.lastName
+            ? `${response.firstName} ${response.lastName}`
+            : response.firstName ?? null;
+
+        state.fullName = derivedFullName;
+        state.dob = response.dateOfBirth ?? state.dob;
+        state.sex = response.sexAtBirth ?? state.sex;
+
+        const healthProfile = response.healthProfile;
+        state.chronicConditions = healthProfile?.chronicConditions ?? [];
+        state.allergies = healthProfile?.allergies ?? [];
+        state.surgicalHistory = healthProfile?.surgicalHistory ?? null;
+        state.familyHistory = healthProfile?.familyHistory ?? null;
+        state.lastSyncedAt = Date.now();
+        state.loading = false;
+      })
+      .addCase(fetchProfileFromServer.rejected, (state, action) => {
+        state.loading = false;
+        console.warn('Failed to fetch profile from server', action.payload ?? action.error?.message);
+      });
   },
 });
 

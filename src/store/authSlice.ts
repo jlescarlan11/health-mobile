@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { clearStoredAuthToken, getStoredAuthToken } from '../services/authSession';
+import { clearStoredAuthSession, getStoredAuthToken } from '../services/authSession';
 import { clearProfile } from './profileSlice';
 import type { AuthUser } from '../types/auth';
 
@@ -27,7 +27,7 @@ export const loadStoredAuthToken = createAsyncThunk('auth/loadStoredAuthToken', 
 });
 
 export const signOutAsync = createAsyncThunk('auth/signOut', async (_, { dispatch }) => {
-  await clearStoredAuthToken();
+  await clearStoredAuthSession();
   dispatch(clearProfile());
 });
 

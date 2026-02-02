@@ -1,4 +1,5 @@
 import { normalizeNumericValue } from './stringUtils';
+import { calculateAgeFromIso } from './dobUtils';
 import type { AssessmentProfile, QuestionSlotGoal } from '../types/triage';
 import type { HealthProfile, Medication } from '../types';
 
@@ -488,11 +489,9 @@ export const detectProfileChanges = (
  */
 export const calculateAgeFromDob = (dob: string | null | undefined): number | null => {
   if (!dob) return null;
-  const birthDate = new Date(dob);
-  if (isNaN(birthDate.getTime())) return null;
-
-  const today = new Date();
-  return today.getFullYear() - birthDate.getFullYear();
+  const age = calculateAgeFromIso(dob);
+  if (!age) return null;
+  return age.years >= 0 ? age.years : null;
 };
 
 /**

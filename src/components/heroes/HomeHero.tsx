@@ -1,10 +1,9 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import { useSelector } from 'react-redux';
 import { Text } from '../common';
 import HeroSection from './HeroSection';
-import { selectFirstName } from '../../store/profileSlice';
+import { useAppSelector } from '../../hooks/reduxHooks';
 
 interface HomeHeroProps {
   hasClinicalReport?: boolean;
@@ -16,11 +15,11 @@ interface HomeHeroProps {
 const HomeHero: React.FC<HomeHeroProps> = ({
   hasClinicalReport,
   onClinicalReportPress,
-  isSignedIn = true,
+  isSignedIn = false,
   onSignInPress,
 }) => {
   const theme = useTheme();
-  const firstName = useSelector(selectFirstName);
+  const authFirstName = useAppSelector((state) => state.auth.user?.firstName);
 
   const today = new Date();
   const formattedDate = today.toLocaleDateString('en-US', {
@@ -30,7 +29,7 @@ const HomeHero: React.FC<HomeHeroProps> = ({
     day: 'numeric',
   });
 
-  const greeting = firstName ? `Kamusta, ${firstName}!` : 'Kamusta!';
+  const greeting = isSignedIn && authFirstName ? `Kamusta, ${authFirstName}!` : 'Kamusta!';
 
   const renderSubtitle = () => {
     const subtitleStyle = [styles.subtitle, { color: theme.colors.onSurface }];

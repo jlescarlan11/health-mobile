@@ -6,19 +6,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { StandardHeader } from '../components/common/StandardHeader';
 import { useAppSelector, useAppDispatch } from '../hooks/reduxHooks';
-import { updateProfile } from '../store/profileSlice';
+import { fetchProfileFromServer, updateProfile } from '../store/profileSlice';
 import { Button } from '../components/common/Button';
 import { LoadingScreen, ScreenSafeArea } from '../components/common';
 import { Text } from '../components';
 import { useAuthStatus, useRedirectToSettingsIfSignedOut } from '../hooks';
 import { theme as appTheme } from '../theme';
+import { formatIsoDateForDisplay } from '../utils/dobUtils';
+import { buildProfilePayload, saveUserProfile } from '../services/profileService';
 
 const HealthProfileEditContent = () => {
   const theme = useTheme();
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const profile = useAppSelector((state) => state.profile);
-  const { derivedFullName, authDob, hasAuthName, hasAuthDob } = useAuthStatus();
+  const { derivedFullName, authDob, hasAuthName, hasAuthDob, authUser } = useAuthStatus();
   const insets = useSafeAreaInsets();
   const themeSpacing = (theme as typeof appTheme).spacing ?? appTheme.spacing;
   const baseBottomPadding = themeSpacing.lg ?? 16;
@@ -161,6 +163,11 @@ const HealthProfileEditContent = () => {
 
     setSexError('');
     setSaveState('saving');
+    const parsedChronic = parseList(chronicConditionsInput);
+    const parsedAllergies = parseList(allergiesInput);
+    const parsedSurgicalHistory = surgicalHistoryInput.trim() || null;
+    const parsedFamilyHistory = familyHistoryInput.trim() || null;
+
     dispatch(
       updateProfile({
         fullName: derivedFullName ?? null,
@@ -168,12 +175,32 @@ const HealthProfileEditContent = () => {
         sex: sex || null,
         bloodType: bloodType.trim() || null,
         philHealthId: philHealthId.trim() || null,
-        chronicConditions: parseList(chronicConditionsInput),
-        allergies: parseList(allergiesInput),
-        surgicalHistory: surgicalHistoryInput.trim() || null,
-        familyHistory: familyHistoryInput.trim() || null,
+        chronicConditions: parsedChronic,
+        allergies: parsedAllergies,
+        surgicalHistory: parsedSurgicalHistory,
+        familyHistory: parsedFamilyHistory,
       }),
     );
+    const syncPayload = buildProfilePayload({
+      profile: {
+        fullName: derivedFullName ?? null,
+        dob: authDob ?? null,
+        sex: sex || null,
+        chronicConditions: parsedChronic,
+        allergies: parsedAllergies,
+        surgicalHistory: parsedSurgicalHistory,
+        familyHistory: parsedFamilyHistory,
+      },
+      authUser,
+    });
+
+    void saveUserProfile(syncPayload)
+      .then(() => {
+        dispatch(fetchProfileFromServer());
+      })
+      .catch((error) => {
+        console.warn('[Profile Sync] Failed to sync profile after save:', error);
+      });
     setSaveState('saved');
     setSnackbarVisible(true);
 
@@ -533,19 +560,4 @@ function parseList(value: string): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
-}
-
-function formatIsoDateForDisplay(iso?: string | null): string {
-  if (!iso) {
-    return '';
-  }
-  const parts = iso.split('-');
-  if (parts.length !== 3) {
-    return iso;
-  }
-  const [year, month, day] = parts;
-  if (!month || !day || !year) {
-    return iso;
-  }
-  return `${month.padStart(2, '0')}/${day.padStart(2, '0')}/${year}`;
 }

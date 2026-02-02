@@ -56,6 +56,11 @@ import {
   getFacilityServiceMatches,
 } from "../utils";
 import {
+  DATE_PLACEHOLDER,
+  formatDateOfBirthInput,
+  validateIsoDateValue,
+} from "../utils/dobUtils";
+import {
   AssessmentProfile,
   TriageLevel,
   TriageAdjustmentRule,
@@ -306,35 +311,16 @@ const RecommendationScreen = () => {
   } = useSelector((state: RootState) => state.facilities);
 
   const [transferFullName, setTransferFullName] = useState("");
-  const [transferDobDigits, setTransferDobDigits] = useState("");
+  const [transferDob, setTransferDob] = useState("");
   const [transferLoading, setTransferLoading] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [dobTouched, setDobTouched] = useState(false);
 
-  const displayDob = useMemo(() => {
-    const digits = transferDobDigits;
-    const month = digits.slice(0, 2);
-    const day = digits.slice(2, 4);
-    const year = digits.slice(4, 8);
-    let formatted = "";
-    if (month) {
-      formatted += month;
-      if (digits.length > 2) formatted += "/";
-    }
-    if (day) {
-      formatted += day;
-      if (digits.length > 4) formatted += "/";
-    }
-    if (year) formatted += year;
-    return formatted;
-  }, [transferDobDigits]);
-
+  const transferDobIsValid = !validateIsoDateValue(transferDob);
   const canSubmitTransfer =
-    transferFullName.trim().length > 0 &&
-    transferDobDigits.length === 8 &&
-    !transferLoading;
+    transferFullName.trim().length > 0 && transferDobIsValid && !transferLoading;
 
   const [loading, setLoading] = useState(true);
   const [recommendation, setRecommendation] =
@@ -371,8 +357,10 @@ const RecommendationScreen = () => {
       return;
     }
 
-    if (transferDobDigits.length !== 8) {
-      setTransferError("Please provide a valid date of birth (MM/DD/YYYY).");
+    const dobError = validateIsoDateValue(transferDob);
+    if (dobError) {
+      setTransferError(dobError);
+      setDobTouched(true);
       return;
     }
 
@@ -385,7 +373,7 @@ const RecommendationScreen = () => {
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
       setTransferFullName("");
-      setTransferDobDigits("");
+      setTransferDob("");
       setDobTouched(false);
 
       const successMessage = `Result transferred for ${name} (mock)`;
@@ -397,7 +385,7 @@ const RecommendationScreen = () => {
     } finally {
       setTransferLoading(false);
     }
-  }, [transferFullName, transferDobDigits]);
+  }, [transferFullName, transferDob]);
 
   const initialSymptomSummary = useMemo(
     () => summarizeInitialSymptom(assessmentData.symptoms),
@@ -1149,11 +1137,10 @@ const RecommendationScreen = () => {
               <TextInput
                 mode="outlined"
                 label="Date of Birth"
-                placeholder="MM/DD/YYYY"
-                value={displayDob}
+                placeholder={DATE_PLACEHOLDER}
+                value={transferDob}
                 onChangeText={(value) => {
-                  const digits = value.replace(/\D/g, "").slice(0, 8);
-                  setTransferDobDigits(digits);
+                  setTransferDob(formatDateOfBirthInput(value));
                   setTransferError(null);
                 }}
                 onBlur={() => setDobTouched(true)}
@@ -1165,11 +1152,7 @@ const RecommendationScreen = () => {
                 keyboardType="number-pad"
                 disabled={transferLoading}
                 outlineStyle={{ borderRadius: 8 }}
-                error={
-                  dobTouched &&
-                  transferDobDigits.length > 0 &&
-                  transferDobDigits.length < 8
-                }
+                error={dobTouched && Boolean(validateIsoDateValue(transferDob))}
               />
               {transferError && (
                 <Text

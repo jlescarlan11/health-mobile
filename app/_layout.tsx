@@ -15,9 +15,12 @@ import {
   LoadingScreen,
 } from "../src/components/common";
 import { setOfflineStatus, setLastSync, syncCompleted } from "../src/store/offlineSlice";
-import { updateProfile } from "../src/store/profileSlice";
+import { fetchProfileFromServer, updateProfile } from "../src/store/profileSlice";
+import "../src/services/httpClient";
+import { registerRefreshFailureHandler } from "../src/services/httpClient";
 import { syncFacilities, syncClinicalHistory, getLastSyncTime } from "../src/services/syncService";
-import { loadStoredAuthToken } from "../src/store/authSlice";
+import { loadStoredAuthToken, signOutAsync } from "../src/store/authSlice";
+import { buildProfilePayload, saveUserProfile } from "../src/services/profileService";
 import { initDatabase } from "../src/services/database";
 import { getScaledTheme } from "../src/theme";
 import { useAppSelector, useAdaptiveUI, useAppDispatch } from "../src/hooks";
@@ -50,11 +53,19 @@ function RootLayoutContent() {
     syncClinicalHistory().catch((err) =>
       console.log("[Sync] Clinical history sync triggered after authentication:", err),
     );
-  }, [authToken]);
+    dispatch(fetchProfileFromServer());
+  }, [authToken, dispatch]);
 
   useEffect(() => {
     dispatch(loadStoredAuthToken());
   }, [dispatch]);
+
+  useEffect(() => {
+    const unregister = registerRefreshFailureHandler(() => {
+      store.dispatch(signOutAsync());
+    });
+    return unregister;
+  }, []);
 
   const scaledTheme = useMemo(() => {
     const baseTheme = getScaledTheme(scaleFactor);
@@ -154,6 +165,18 @@ function RootLayoutContent() {
           .catch(() => {});
         if (authTokenRef.current) {
           syncClinicalHistory().catch(() => {});
+          const state = store.getState();
+          const payload = buildProfilePayload({
+            profile: state.profile,
+            authUser: state.auth.user,
+          });
+          saveUserProfile(payload)
+            .then(() => {
+              dispatch(fetchProfileFromServer());
+            })
+            .catch((err) =>
+              console.log("[Profile Sync] Failed to sync profile after reconnect:", err),
+            );
         } else {
           console.log("[Sync] Skipping clinical history sync after reconnection until signed in.");
         }

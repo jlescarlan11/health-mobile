@@ -23,9 +23,9 @@ import {
 import {
   parseSoap,
   formatClinicalShareText,
-  calculateAgeFromDob,
   serializeClinicalSnapshot,
 } from '../utils/clinicalUtils';
+import { formatIsoDateForDisplay } from '../utils/dobUtils';
 import * as Print from 'expo-print';
 import { sharingUtils } from '../utils/sharingUtils';
 import QRCode from 'react-native-qrcode-svg';
@@ -174,7 +174,7 @@ export const ClinicalNoteScreen = () => {
               <div class="patient-info">
                 <div class="patient-name">${snapshotProfile.fullName || 'Patient'}</div>
                 <div>${snapshotProfile.sex ? snapshotProfile.sex + ', ' : ''}${
-                    snapshotProfile.dob ? calculateAgeFromDob(snapshotProfile.dob) + ' years old' : ''
+                    snapshotProfile.dob ? formatIsoDateForDisplay(snapshotProfile.dob) : ''
                   }</div>
                 ${
                   snapshotProfile.philHealthId
@@ -309,9 +309,9 @@ export const ClinicalNoteScreen = () => {
                 {snapshotProfile.fullName || 'Registered Patient'}
               </Text>
             </View>
-            <Text variant="bodyMedium" style={styles.patientDetail}>
-              {snapshotProfile.sex ? `${snapshotProfile.sex} · ` : ''}
-              {snapshotProfile.dob ? `${calculateAgeFromDob(snapshotProfile.dob)} years old` : ''}
+              <Text variant="bodyMedium" style={styles.patientDetail}>
+                {snapshotProfile.sex ? `${snapshotProfile.sex} · ` : ''}
+              {snapshotProfile.dob ? formatIsoDateForDisplay(snapshotProfile.dob) : ''}
               {snapshotProfile.bloodType ? ` · Blood: ${snapshotProfile.bloodType}` : ''}
             </Text>
           </Surface>
