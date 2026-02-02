@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { TextInput, HelperText, useTheme } from 'react-native-paper';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { StandardHeader } from '../components/common/StandardHeader';
 import { ScreenSafeArea } from '../components/common/ScreenSafeArea';
 import { Button } from '../components/common/Button';
@@ -28,6 +29,7 @@ export const SignInScreen = () => {
   const navigation = useNavigation<NavigationProp<Record<string, unknown>>>();
   const dispatch = useAppDispatch();
   const { scaleFactor } = useAdaptiveUI();
+  const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -60,7 +62,11 @@ export const SignInScreen = () => {
       });
       dispatch(setAuthToken(result.accessToken));
       dispatch(setAuthUser(result.user));
-      navigation.goBack();
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        router.replace('/');
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to sign in at the moment.';
       dispatch(setAuthError(message));

@@ -19,7 +19,7 @@ import { fetchProfileFromServer, updateProfile } from "../src/store/profileSlice
 import "../src/services/httpClient";
 import { registerRefreshFailureHandler } from "../src/services/httpClient";
 import { syncFacilities, syncClinicalHistory, getLastSyncTime } from "../src/services/syncService";
-import { loadStoredAuthToken, signOutAsync } from "../src/store/authSlice";
+import { loadStoredAuthToken, signOutAsync, setAuthUser } from "../src/store/authSlice";
 import { buildProfilePayload, saveUserProfile } from "../src/services/profileService";
 import { initDatabase } from "../src/services/database";
 import { getScaledTheme } from "../src/theme";
@@ -50,10 +50,29 @@ function RootLayoutContent() {
     if (!authToken) {
       return;
     }
+
     syncClinicalHistory().catch((err) =>
       console.log("[Sync] Clinical history sync triggered after authentication:", err),
     );
-    dispatch(fetchProfileFromServer());
+
+    const pendingProfileFetch = dispatch(fetchProfileFromServer());
+    void pendingProfileFetch
+      .unwrap()
+      .then((payload) => {
+        dispatch(
+          setAuthUser({
+            id: payload.id,
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            phoneNumber: payload.phoneNumber,
+            dateOfBirth: payload.dateOfBirth,
+            sexAtBirth: payload.sexAtBirth,
+          }),
+        );
+      })
+      .catch((error) => {
+        console.warn("[Auth] Unable to hydrate user profile after re-auth:", error);
+      });
   }, [authToken, dispatch]);
 
   useEffect(() => {

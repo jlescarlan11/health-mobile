@@ -1,5 +1,5 @@
 import axios from 'axios';
-import jwtDecode from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 import { API_URL } from './apiConfig';
 import {
   clearStoredAuthSession,
