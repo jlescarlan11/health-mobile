@@ -39,7 +39,7 @@ Naga City faces a critical healthcare imbalance where the **Naga City General Ho
 
 ## Solution
 
-**HEALTH** is an AI-powered mobile navigation application that acts as a digital triage officer for Naga City residents. It utilizes **Google's Gemini AI** (via a dedicated backend) to analyze symptoms and direct users to the appropriate level of care—whether it be self-care, a barangay health center, or the emergency room. Additionally, the app streamlines enrollment in the YAKAP program and provides an offline-accessible directory of local health facilities, ensuring equitable access to healthcare resources.
+**HEALTH** is an AI-powered mobile navigation application that serves as a digital triage officer for Naga City residents. It uses **Google’s Gemini AI** through a dedicated backend to analyze symptoms and guide users to the appropriate level of care, whether self-care, a barangay health center, or the emergency room. The app also streamlines enrollment in the YAKAP program and provides an offline-accessible directory of local health facilities to ensure equitable access to healthcare resources.
 
 ---
 
@@ -154,20 +154,24 @@ graph TD
 
 ## Challenges
 
-- **AI Safety & Hallucination:** Ensuring the AI strictly adheres to medical protocols without diagnosing. **Mitigation:** We implemented a "Triage Arbiter" layer on the backend that forces the AI to output structured JSON data, which is then validated against hard-coded clinical safety rules before being sent to the client.
+- **AI Safety & Hallucination:** Ensuring the AI strictly adheres to medical protocols without diagnosing.
+    - **Mitigation:** We implemented a "Triage Arbiter" layer on the backend that forces the AI to output structured JSON data, which is then validated against hard-coded clinical safety rules before being sent to the client.
 
-- **Language Localization:** accurately translating medical intent across English, Tagalog, and Bicol. **Mitigation:** We utilized a custom localization dictionary combined with AI context awareness to handle local slang and dialects effectively.
+- **Language Localization:** accurately translating medical intent across English, Tagalog, and Bicol.
+    - **Mitigation:** We utilized a custom localization dictionary combined with AI context awareness to handle local slang and dialects effectively.
 
-- **Offline Connectivity:** Ensuring the app is useful in areas with poor data coverage. **Mitigation:** We architected a "Sync Service" using Redux Persist to download and cache facility data from the PostgreSQL database, enabling core directory functionality without an internet connection.
+- **Offline Connectivity:** Ensuring the app is useful in areas with poor data coverage.
+    - **Mitigation:** We architected a "Sync Service" using Redux Persist to download and cache facility data from the PostgreSQL database, enabling core directory functionality without an internet connection.
 
 ---
 
 ## Future Scope
-
-- **MyNaga Integration:** Full account syncing with the city's existing MyNaga portal for unified digital identity.
-- **Teleconsultation:** In-app video calls with Barangay Health Workers for preliminary assessments.
-- **Queue Monitoring:** Real-time integration with NCGH's queuing system to show live wait times.
-- **Emergency SOS:** One-tap coordination with Naga City Rescue utilizing device location.
+ 
+- **Admin & Predictive analytics Dashboard**
+- **Health alerts and notifications** 
+- **Private mode for sensitive health topics**
+- **Community Forum + Expansion of Health Articles in Health Hub**
+- **Telemedicine**
 
 ---
 
@@ -175,15 +179,15 @@ graph TD
 
 **Team CTRL+H**
 
-- [Member Name TBD] - Full Stack Developer | [GitHub](#)
-- [Member Name TBD] - UI/UX Designer | [LinkedIn](#)
-- [Member Name TBD] - AI Engineer | [GitHub](#)
-- [Member Name TBD] - Project Manager | [LinkedIn](#)
-
+- John Lester Escarlan - Project and Technical Lead | [GitHub](https://github.com/jlescarlan1)
+- Nicolete Reine Guarin - Developer | [GitHub](https://github.com/aquaryasss)
+- Merl Jhun Catiquista - Research and Data Collection | [GitHub](https://github.com/merljhun)
+- Jen Bolat-ag - Quality Assurance | [GitHub](https://github.com/jbbolatag1-wq)
+- Al Glenrey Tilacas - Creative Director | [GitHub](https://github.com/Alglenrey)
+    
 ---
 
 ## Acknowledgments
 
 - **Naga City Government** for organizing the Mayoral Hackathon and providing facility data.
-- **Google Developer Group** for technical mentorship and Gemini API credits.
 - **Open Source Community** for the incredible React Native and Node.js ecosystems.
