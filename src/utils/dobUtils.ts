@@ -1,6 +1,6 @@
 const pad = (value: number) => String(value).padStart(2, '0');
 const ISO_DOB_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
-export const DATE_PLACEHOLDER = '____-__-__';
+export const DATE_PLACEHOLDER = 'YYYY-MM-DD';
 export const DATE_FORMAT_EXAMPLE = 'YYYY-MM-DD';
 export const MINIMUM_DOB_YEAR = 1900;
 

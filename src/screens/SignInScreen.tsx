@@ -20,8 +20,14 @@ import { useAppDispatch } from '../hooks/reduxHooks';
 import { setAuthError, setAuthLoading, setAuthToken, setAuthUser } from '../store/authSlice';
 import { storeAuthSession } from '../services/authSession';
 import { SignInFormPayload, signIn } from '../services/authApi';
+import {
+  formatPhilippinesPhoneNumber,
+  sanitizePhilippinesPhoneInput,
+  MAX_PHILIPPINES_PHONE_DIGITS,
+  PHILIPPINES_COUNTRY_CODE,
+  PHILIPPINES_PHONE_PLACEHOLDER,
+} from '../utils/phoneNumberUtils';
 
-const MIN_PHONE_LENGTH = 7;
 const MIN_PASSWORD_LENGTH = 8;
 
 export const SignInScreen = () => {
@@ -35,8 +41,8 @@ export const SignInScreen = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const trimmedPhoneNumber = phoneNumber.trim();
-  const isPhoneValid = trimmedPhoneNumber.length >= MIN_PHONE_LENGTH;
+  const formattedPhoneNumber = formatPhilippinesPhoneNumber(phoneNumber);
+  const isPhoneValid = phoneNumber.length === MAX_PHILIPPINES_PHONE_DIGITS;
   const isPasswordValid = password.length >= MIN_PASSWORD_LENGTH;
   const isFormValid = isPhoneValid && isPasswordValid;
 
@@ -46,6 +52,10 @@ export const SignInScreen = () => {
     [],
   );
 
+  const handlePhoneNumberChange = (value: string) => {
+    setPhoneNumber(sanitizePhilippinesPhoneInput(value));
+  };
+
   const handleSubmit = async () => {
     if (!isFormValid || isSubmitting) {
       return;
@@ -54,7 +64,7 @@ export const SignInScreen = () => {
     setErrorMessage(null);
     setIsSubmitting(true);
     try {
-      const payload: SignInFormPayload = { phoneNumber: trimmedPhoneNumber, password };
+      const payload: SignInFormPayload = { phoneNumber, password };
       const result = await signIn(payload);
       await storeAuthSession({
         accessToken: result.accessToken,
@@ -102,15 +112,17 @@ export const SignInScreen = () => {
             <View style={styles.formField}>
               <TextInput
                 label="Phone number"
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
+                placeholder={PHILIPPINES_PHONE_PLACEHOLDER}
+                value={formattedPhoneNumber}
+                onChangeText={handlePhoneNumberChange}
                 keyboardType="phone-pad"
                 returnKeyType="next"
                 mode="outlined"
+                left={<TextInput.Affix text={PHILIPPINES_COUNTRY_CODE} />}
               />
               {!isPhoneValid && phoneNumber.length > 0 && (
                 <HelperText type="error">
-                  Phone number must contain at least {MIN_PHONE_LENGTH} characters.
+                  Phone number must contain {MAX_PHILIPPINES_PHONE_DIGITS} digits.
                 </HelperText>
               )}
             </View>
