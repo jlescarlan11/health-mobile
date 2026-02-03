@@ -22,6 +22,7 @@ import { syncFacilities, syncClinicalHistory, getLastSyncTime } from "../src/ser
 import { loadStoredAuthToken, signOutAsync, setAuthUser } from "../src/store/authSlice";
 import { buildProfilePayload, saveUserProfile } from "../src/services/profileService";
 import { initDatabase } from "../src/services/database";
+import { signalStartupReady } from "../src/services/startupState";
 import { getScaledTheme } from "../src/theme";
 import { useAppSelector, useAdaptiveUI, useAppDispatch } from "../src/hooks";
 
@@ -41,6 +42,7 @@ function RootLayoutContent() {
   const isSignedIn = Boolean(authToken);
   const authTokenRef = useRef(authToken);
   const isSignedInOnMount = useRef(isSignedIn);
+  const startupHasRunRef = useRef(false);
 
   useEffect(() => {
     authTokenRef.current = authToken;
@@ -125,23 +127,26 @@ function RootLayoutContent() {
   }, [authUser, profile.fullName, profile.dob, dispatch]);
 
   useEffect(() => {
-    // Check for high risk status on mount
     if (isHighRisk) {
       setSafetyModalVisible(true);
     }
+  }, [isHighRisk]);
 
-    // Initialize Database and Sync
+  useEffect(() => {
+    if (startupHasRunRef.current) {
+      return;
+    }
+    startupHasRunRef.current = true;
+
     const startup = async () => {
       try {
         await initDatabase();
 
-        // Initial Sync Status Load
         const lastSync = await getLastSyncTime();
         if (lastSync) {
           store.dispatch(setLastSync(lastSync));
         }
 
-        // Initial Sync
         syncFacilities()
           .then((synced) => {
             if (synced) {
@@ -161,13 +166,13 @@ function RootLayoutContent() {
       } catch (err) {
         console.error("Startup initialization failed:", err);
       } finally {
+        signalStartupReady();
         await SplashScreen.hideAsync();
       }
     };
 
     startup();
 
-    // Network Listener
     let wasOffline = false;
     const unsubscribe = NetInfo.addEventListener((state) => {
       const isConnected = !!state.isConnected;
@@ -206,7 +211,7 @@ function RootLayoutContent() {
     return () => {
       unsubscribe();
     };
-  }, [isHighRisk]);
+  }, []);
 
   const handleDismissSafetyModal = () => {
     setSafetyModalVisible(false);

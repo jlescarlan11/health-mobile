@@ -1,9 +1,6 @@
 import axios from 'axios';
 import { API_URL } from './apiConfig';
-import {
-  getFacilities as getFacilitiesFromDb,
-  saveFacilitiesFull as saveFacilitiesToDb,
-} from './database';
+import { getFacilities as getFacilitiesFromDb } from './database';
 import NetInfo from '@react-native-community/netinfo';
 import { normalizeFacilitiesApiResponse } from '../utils/validation';
 
@@ -48,27 +45,6 @@ export const getFacilities = async () => {
   if (netInfo.isConnected) {
     try {
       const data = await fetchFacilitiesFromApi();
-      // Optionally cache the data here as well, or rely on the background sync service.
-      // For robust fallback, it's good to cache on every successful fetch.
-      // We need to match the data structure expected by saveFacilities.
-      // Assuming response.data is the array or has a facilities property.
-      // Based on existing logs: response.data?.facilities?.length or response.data?.length
-
-      let facilitiesToSave: unknown[] = [];
-      if (Array.isArray(data)) {
-        facilitiesToSave = data;
-      } else if (data.facilities && Array.isArray(data.facilities)) {
-        facilitiesToSave = data.facilities;
-      }
-
-      const normalized = normalizeFacilitiesApiResponse(facilitiesToSave);
-
-      if (normalized.facilities.length > 0) {
-        saveFacilitiesToDb(normalized.facilities).catch((err) =>
-          console.error('Failed to cache facilities:', err),
-        );
-      }
-
       return normalizeFacilitiesApiResponse(data).data;
     } catch (error) {
       console.warn('API fetch failed, falling back to local database:', error);

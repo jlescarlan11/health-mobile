@@ -6,6 +6,12 @@ import * as DB from './database';
 import { Facility } from '../types';
 import { API_URL } from './apiConfig';
 import { getStoredAuthToken } from './authSession';
+import {
+  beginFacilitiesSync,
+  concludeFacilitiesSync,
+  getFacilitiesSyncPromise,
+  isFacilitiesSyncInProgress,
+} from './syncState';
 
 const HISTORY_SYNC_BACKOFF_KEY = 'history_sync_next_attempt_ms';
 const MAX_FAILURES_PER_RUN = 5;
@@ -415,37 +421,53 @@ export const syncClinicalHistory = async () => {
 };
 
 export const syncFacilities = async () => {
-  const state = await NetInfo.fetch();
-
-  if (!state.isConnected) {
-    throw new Error('Cannot sync: Offline');
+  if (isFacilitiesSyncInProgress()) {
+    console.log('[Sync] Facilities sync already in progress; reusing existing request.');
+    return getFacilitiesSyncPromise() ?? Promise.resolve(false);
   }
 
-  try {
-    console.log('Starting facilities sync...');
-    const data = await fetchFacilitiesFromApi();
+  const task = (async () => {
+    try {
+      const state = await NetInfo.fetch();
 
-    let facilitiesToSave: Facility[] = [];
-    if (Array.isArray(data)) {
-      facilitiesToSave = data;
-    } else if (data.facilities && Array.isArray(data.facilities)) {
-      facilitiesToSave = data.facilities;
-    }
+      if (!state.isConnected) {
+        throw new Error('Cannot sync: Offline');
+      }
 
-    if (facilitiesToSave.length > 0) {
-      await DB.saveFacilitiesFull(facilitiesToSave);
-      const timestamp = Date.now();
-      await AsyncStorage.setItem('last_sync_timestamp', timestamp.toString());
-      console.log('Facilities sync completed successfully');
-      return true;
-    } else {
+      console.log('Starting facilities sync...');
+      const data = await fetchFacilitiesFromApi();
+
+      let facilitiesToSave: Facility[] = [];
+      if (Array.isArray(data)) {
+        facilitiesToSave = data;
+      } else if (data.facilities && Array.isArray(data.facilities)) {
+        facilitiesToSave = data.facilities;
+      }
+
+      if (facilitiesToSave.length > 0) {
+        await DB.saveFacilitiesFull(facilitiesToSave);
+        const timestamp = Date.now();
+        await AsyncStorage.setItem('last_sync_timestamp', timestamp.toString());
+        console.log('Facilities sync completed successfully');
+        return true;
+      }
+
       console.log('No facilities data to sync');
       return false;
+    } catch (error) {
+      console.error('Sync failed:', error);
+      throw error;
     }
-  } catch (error) {
-    console.error('Sync failed:', error);
-    throw error;
-  }
+  })();
+
+  beginFacilitiesSync(task);
+  task
+    .catch(() => {})
+    .finally(() => {
+      concludeFacilitiesSync();
+    });
+
+  return task;
 };
 
 export const getLastSyncTime = async (): Promise<number | null> => {

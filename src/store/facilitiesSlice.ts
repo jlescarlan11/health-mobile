@@ -3,6 +3,8 @@ import { getFacilities } from '../services/facilityService';
 import { Facility, FacilityService } from '../types';
 import { calculateDistance } from '../utils/locationUtils';
 import { getOpenStatus, resolveServiceAlias } from '../utils/facilityUtils';
+import { getFacilitiesSyncPromise } from '../services/syncState';
+import { waitForStartupReady } from '../services/startupState';
 
 interface FacilityFilters {
   type?: string[];
@@ -43,6 +45,11 @@ const initialState: FacilitiesState = {
 };
 
 export const fetchFacilities = createAsyncThunk('facilities/fetchFacilities', async () => {
+  await waitForStartupReady();
+  const syncPromise = getFacilitiesSyncPromise();
+  if (syncPromise) {
+    await syncPromise.catch(() => {});
+  }
   const data = await getFacilities();
   return { data };
 });
