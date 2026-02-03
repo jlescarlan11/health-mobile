@@ -81,7 +81,7 @@ export const SignInScreen = () => {
   };
 
   return (
-    <ScreenSafeArea style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <StandardHeader title="Sign In" showBackButton />
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
@@ -167,7 +167,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingTop: 8,
   },
   sectionTitle: {
     fontWeight: '700',

@@ -149,7 +149,7 @@ export const SignUpScreen = () => {
   };
 
   return (
-    <ScreenSafeArea style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <StandardHeader title="Create Account" showBackButton />
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
@@ -266,7 +266,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingTop: 8,
   },
   sectionTitle: {
     fontWeight: '700',
