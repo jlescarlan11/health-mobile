@@ -101,12 +101,6 @@ export const SignUpScreen = () => {
   const confirmPasswordHelperText =
     fieldErrors.confirmPassword ?? (confirmPassword.length > 0 && !doPasswordsMatch ? 'Passwords must match.' : undefined);
 
-  const integrationWarning = useMemo(
-    () =>
-      'Signing up requires the backend /auth/signup endpoint. Any invalid fields will render inline messages so you can correct them before submitting again.',
-    [],
-  );
-
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(sanitizePhilippinesPhoneInput(value));
   };
@@ -168,9 +162,6 @@ export const SignUpScreen = () => {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={[styles.sectionTitle, { fontSize: 18 * scaleFactor }]}>Create your profile</Text>
-            <Text style={[styles.description, { fontSize: 14 * scaleFactor }]}>{integrationWarning}</Text>
-
             {!!errorMessage && (
               <View style={styles.errorPill}>
                 <Text style={{ color: theme.colors.error }}>{errorMessage}</Text>
@@ -280,10 +271,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: '700',
     marginBottom: 8,
-  },
-  description: {
-    color: '#4C566A',
-    marginBottom: 16,
   },
   formField: {
     marginBottom: 16,

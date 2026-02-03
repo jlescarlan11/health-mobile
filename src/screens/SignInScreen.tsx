@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Keyboard,
@@ -45,12 +45,6 @@ export const SignInScreen = () => {
   const isPhoneValid = phoneNumber.length === MAX_PHILIPPINES_PHONE_DIGITS;
   const isPasswordValid = password.length >= MIN_PASSWORD_LENGTH;
   const isFormValid = isPhoneValid && isPasswordValid;
-
-  const integrationNotice = useMemo(
-    () =>
-      'Enter your phone number and password to sign in. The app sends your credentials to /auth/login once the backend is available.',
-    [],
-  );
 
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(sanitizePhilippinesPhoneInput(value));
@@ -100,9 +94,6 @@ export const SignInScreen = () => {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={[styles.sectionTitle, { fontSize: 18 * scaleFactor }]}>Welcome back</Text>
-            <Text style={[styles.description, { fontSize: 14 * scaleFactor }]}>{integrationNotice}</Text>
-
             {!!errorMessage && (
               <View style={styles.errorPill}>
                 <Text style={{ color: theme.colors.error }}>{errorMessage}</Text>
@@ -181,10 +172,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: '700',
     marginBottom: 8,
-  },
-  description: {
-    color: '#4C566A',
-    marginBottom: 16,
   },
   formField: {
     marginBottom: 16,
