@@ -193,7 +193,7 @@ export const SYSTEM_LOCK_KEYWORD_MAP: Record<SystemCategory, SystemLockConfig> =
 };
 
 export interface AssessmentProfile {
-  age: string | null;
+  age: string | number | null;
   duration: string | null;
   severity: string | null;
   progression: string | null;

@@ -1,4 +1,4 @@
-import type { TriageLogic } from './triage';
+import type { TriageCareLevel, TriageLogic } from './triage';
 export * from './navigation';
 export * from './triage';
 
@@ -88,6 +88,7 @@ export interface EmergencyContact {
 
 export interface AssessmentResponse {
   recommended_level: 'self_care' | 'health_center' | 'hospital' | 'emergency';
+  final_disposition: TriageCareLevel;
   follow_up_questions: string[];
   user_advice: string;
   clinical_soap: string;

@@ -9,6 +9,7 @@ import {
   calculateTriageScore,
   normalizeSlot,
 } from '../utils/aiUtils';
+import { parseSoap } from '../utils/clinicalUtils';
 import { AssessmentResponse } from '../types';
 import {
   AssessmentProfile,
@@ -120,6 +121,49 @@ const sanitizeHeaders = (headers?: Record<string, unknown>) => {
     sanitized[key] = value;
   });
   return sanitized;
+};
+
+const DISPOSITION_LABELS: Record<TriageCareLevel, string> = {
+  self_care: 'Self-care',
+  health_center: 'Health Center',
+  hospital: 'Hospital',
+  emergency: 'Emergency Department',
+};
+
+const DISPOSITION_INSTRUCTIONS: Record<TriageCareLevel, string> = {
+  self_care: 'Manage symptoms at home with rest, hydration, and monitoring. Return quickly if the condition worsens.',
+  health_center: 'Visit a Health Center within 24-48 hours for assessment and basic diagnostics.',
+  hospital: 'Proceed to a hospital for a comprehensive evaluation, diagnostics, and monitoring.',
+  emergency: 'Go directly to the nearest emergency department or call emergency services immediately.',
+};
+
+const buildDispositionPlanSegment = (disposition: TriageCareLevel, escalated: boolean): string => {
+  const label = DISPOSITION_LABELS[disposition];
+  const instruction = DISPOSITION_INSTRUCTIONS[disposition];
+  const basePlan = `P: Disposition – ${label}. ${instruction}`;
+  return escalated ? `${basePlan}\nPlan Addendum: Escalated to ${label}.` : basePlan;
+};
+
+const PLAN_ESCALATION_KEYWORDS = ['visit a hospital', 'evaluate in clinic'];
+
+const buildEscalationPlanSentence = (level: TriageCareLevel): string => {
+  const label = DISPOSITION_LABELS[level];
+  return `P: This assessment recommends ${label} (${level}). Please visit a hospital or evaluate in clinic for timely follow-up.`;
+};
+
+const applyDispositionToClinicalSoap = (clinicalSoap: string, planSegment: string): string => {
+  if (!clinicalSoap) return planSegment;
+
+  const planIndex = clinicalSoap.lastIndexOf('P:');
+  if (planIndex === -1) {
+    const trimmed = clinicalSoap.trimEnd();
+    const needsSeparator = trimmed.length > 0 && !trimmed.endsWith('\n');
+    const trailing = clinicalSoap.slice(trimmed.length);
+    return `${trimmed}${needsSeparator ? '\n' : ''}${planSegment}${trailing}`;
+  }
+
+  const prefix = clinicalSoap.slice(0, planIndex);
+  return `${prefix}${planSegment}`;
 };
 
 type ResponseDiagnostics = {
@@ -815,6 +859,7 @@ export class GeminiClient {
       }
 
       const validatedData = validationResult.data;
+      this.normalizeUpdatedProfileAge(validatedData.updatedProfile);
 
       if (validatedData.version !== 'v1') {
         console.error('[GeminiClient] triageAssess version mismatch:', {
@@ -988,7 +1033,11 @@ export class GeminiClient {
         recommended_level: 'emergency',
         follow_up_questions: [],
         user_advice: advice,
-        clinical_soap: `S: Patient reports ${emergency.matchedKeywords.join(', ')}. O: AI detected critical emergency keywords (${emergency.affectedSystems.join(', ')}). A: Potential life-threatening condition. P: Immediate ED referral.`,
+        final_disposition: 'emergency',
+        clinical_soap: applyDispositionToClinicalSoap(
+          `S: Patient reports ${emergency.matchedKeywords.join(', ')}. O: AI detected critical emergency keywords (${emergency.affectedSystems.join(', ')}). A: Potential life-threatening condition. P: Immediate ED referral.`,
+          buildDispositionPlanSegment('emergency', false),
+        ),
         key_concerns: emergency.matchedKeywords.map((k) => `Urgent: ${k}`),
         critical_warnings: ['Life-threatening condition possible', 'Do not delay care'],
         relevant_services: ['Emergency'],
@@ -1014,7 +1063,11 @@ export class GeminiClient {
         follow_up_questions: [],
         user_advice:
           'Your symptoms indicate a mental health crisis. You are not alone. Please reach out to a crisis hotline or go to the nearest hospital immediately.',
-        clinical_soap: `S: Patient reports ${mhCrisis.matchedKeywords.join(', ')}. O: AI detected crisis keywords. A: Mental health crisis. P: Immediate psychiatric evaluation/intervention.`,
+        final_disposition: 'emergency',
+        clinical_soap: applyDispositionToClinicalSoap(
+          `S: Patient reports ${mhCrisis.matchedKeywords.join(', ')}. O: AI detected crisis keywords. A: Mental health crisis. P: Immediate psychiatric evaluation/intervention.`,
+          buildDispositionPlanSegment('emergency', false),
+        ),
         key_concerns: ['Risk of self-harm or severe distress'],
         critical_warnings: ['You are not alone. Professional help is available now.'],
         relevant_services: ['Mental Health'],
@@ -1181,13 +1234,23 @@ export class GeminiClient {
         }
 
         this.synchronizeAssessmentResponse(parsed, targetLevel);
+        const finalDisposition = parsed.recommended_level as TriageCareLevel;
 
         if (parsed.triage_logic) {
           parsed.triage_logic = {
             ...parsed.triage_logic,
-            final_level: parsed.recommended_level as TriageCareLevel,
+            final_level: finalDisposition,
           };
         }
+
+        parsed.final_disposition = finalDisposition;
+        const escalated = levels.indexOf(finalDisposition) > levels.indexOf(originalLevel);
+        parsed.clinical_soap = applyDispositionToClinicalSoap(
+          parsed.clinical_soap ?? '',
+          buildDispositionPlanSegment(finalDisposition, escalated),
+        );
+
+        this.ensurePlanEscalation(parsed, finalDisposition);
 
         this.cacheQueue = this.cacheQueue
           .then(() =>
@@ -1262,9 +1325,78 @@ export class GeminiClient {
     return response;
   }
 
+  private ensurePlanEscalation(
+    response: AssessmentResponse,
+    finalLevel: TriageCareLevel,
+  ): void {
+    if (finalLevel !== 'hospital' && finalLevel !== 'emergency') return;
+
+    const planText = parseSoap(response.clinical_soap ?? '').p;
+    const normalizedPlan = planText?.toLowerCase() ?? '';
+    const hasEscalationKeyword = PLAN_ESCALATION_KEYWORDS.some((keyword) =>
+      normalizedPlan.includes(keyword),
+    );
+
+    if (hasEscalationKeyword) return;
+
+    response.clinical_soap = applyDispositionToClinicalSoap(
+      response.clinical_soap ?? '',
+      buildEscalationPlanSentence(finalLevel),
+    );
+  }
+
   private logFinalResult(recommendation: AssessmentResponse, assessmentText: string) {
     const levelLabel = recommendation.recommended_level.replace(/_/g, ' ').toUpperCase();
     console.log(`[GeminiClient] FINAL RESULT: ${levelLabel}`);
+  }
+
+  private normalizeUpdatedProfileAge(profile: AssessmentProfile): void {
+    const normalized = this.coerceAgeToNumber(profile.age);
+
+    if (normalized === null) {
+      if (profile.age !== null && profile.age !== undefined) {
+        console.warn(
+          `[GeminiClient] Unable to parse updatedProfile.age (${profile.age}); normalizing to null.`,
+        );
+      }
+      profile.age = null;
+      return;
+    }
+
+    if (profile.age !== normalized && typeof profile.age === 'string') {
+      console.info(
+        `[GeminiClient] Normalized updatedProfile.age from string to number: ${normalized}`,
+      );
+    }
+
+    profile.age = normalized;
+  }
+
+  private coerceAgeToNumber(value: string | number | null | undefined): number | null {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) {
+        return numeric;
+      }
+
+      const digits = trimmed.match(/-?\d+/);
+      if (digits) {
+        const parsed = Number(digits[0]);
+        if (!Number.isNaN(parsed)) {
+          return parsed;
+        }
+      }
+    }
+
+    return null;
   }
 }
 

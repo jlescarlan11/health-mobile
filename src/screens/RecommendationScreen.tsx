@@ -278,6 +278,7 @@ const buildLocalEmergencyAssessment = (
     recommended_level: "emergency",
     follow_up_questions: [],
     user_advice: advice,
+    final_disposition: "emergency",
     clinical_soap: `S: Emergency keywords detected (${matchedList}). O: Local detector flagged ${systemsLabel}. A: Potential life-threatening condition. P: Immediate emergency referral.`,
     key_concerns: concernItems,
     critical_warnings: [
@@ -608,6 +609,7 @@ const RecommendationScreen = () => {
             isFallbackApplied: true,
             clinicalFrictionDetails: emergencyResponse.clinical_friction_details,
             medical_justification: emergencyResponse.medical_justification,
+            final_disposition: emergencyResponse.final_disposition,
           }),
         );
         dispatch(setHighRisk(true));
@@ -673,6 +675,7 @@ const RecommendationScreen = () => {
           isFallbackApplied: response.is_conservative_fallback,
           clinicalFrictionDetails: response.clinical_friction_details,
           medical_justification: response.medical_justification,
+          final_disposition: response.final_disposition,
         }),
       );
 
@@ -684,6 +687,7 @@ const RecommendationScreen = () => {
             recommended_level: response.recommended_level,
             medical_justification: response.medical_justification,
             initial_symptoms: symptomsRef.current,
+            final_disposition: response.final_disposition,
             isGuest: guestMode,
           }),
         );
@@ -779,6 +783,7 @@ const RecommendationScreen = () => {
         recommended_level: normalizedFallbackLevel,
         user_advice: fallbackAdvice,
         clinical_soap: `S: ${localAnalysisContext}. O: N/A. A: Fallback triage (Score: ${localResult.score}).${specificRiskMatch ? ` Risk: ${specificRiskMatch.reason}` : ""} P: Refer to ${fallbackLevel === "emergency" ? "Emergency Room" : fallbackLevel === "hospital" ? "Hospital" : fallbackLevel === "health-center" ? "Health Center" : "Home Management"}.`,
+        final_disposition: normalizedFallbackLevel,
         key_concerns: [
           "Need for professional evaluation",
           ...localResult.matchedKeywords.map((k) => `Monitored: ${k}`),
@@ -823,6 +828,7 @@ const RecommendationScreen = () => {
           user_advice: fallbackResponse.user_advice,
           clinical_soap: fallbackResponse.clinical_soap,
           isFallbackApplied: fallbackResponse.is_conservative_fallback,
+          final_disposition: fallbackResponse.final_disposition,
         }),
       );
     } finally {

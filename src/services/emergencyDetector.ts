@@ -776,6 +776,7 @@ class EmergencyDetector extends KeywordDetector {
 
       overrideResponse = {
         recommended_level: 'emergency',
+        final_disposition: 'emergency',
         user_advice: advice,
         clinical_soap: `S: Patient reports ${matchedKeywords.join(', ')}. O: Emergency keywords detected (${affectedSystems.join(', ')})${combinationReason ? ` - Risk: ${combinationReason}` : ''}. A: Potential life-threatening condition. P: Immediate ED referral.`,
         key_concerns: matchedKeywords.map((k) => `Urgent symptom: ${k}`),

@@ -2,12 +2,14 @@ import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import * as DB from '../services/database';
 import type { RootState } from './index';
 import { syncClinicalHistory } from '../services/syncService';
+import { AssessmentResponse } from '../types';
 
 export interface LatestAssessment {
   id: string;
   clinical_soap: string;
   recommended_level: string;
   medical_justification?: string;
+  final_disposition: AssessmentResponse['final_disposition'];
   initial_symptoms: string;
   timestamp: number;
   isGuest?: boolean;
@@ -55,6 +57,7 @@ export const saveClinicalNote = createAsyncThunk(
         id: generateUUID(),
         timestamp: Date.now(),
         profile_snapshot: undefined, // Explicitly exclude profile for guests
+        final_disposition: payload.final_disposition,
       };
       
       console.log('[Offline] Guest mode assessment detected. Updating Redux only.');

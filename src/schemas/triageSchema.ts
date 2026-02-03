@@ -6,7 +6,7 @@ export const ChatHistoryItemSchema = z.object({
 });
 
 export const AssessmentProfileSchema = z.object({
-  age: z.string().nullable(),
+  age: z.union([z.string(), z.number()]).nullable(),
   duration: z.string().nullable(),
   severity: z.string().nullable(),
   progression: z.string().nullable(),

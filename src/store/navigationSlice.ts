@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { AssessmentResponse } from '../types';
 import { TriageSnapshot, AssessmentQuestion, AssessmentProfile } from '../types/triage';
 import { ClinicalSlots } from '../utils/clinicalUtils';
 import { EmergencyDetectionResult } from '../services/emergencyDetector';
@@ -22,6 +23,7 @@ interface Recommendation {
   facilityType?: string;
   user_advice: string;
   clinical_soap: string;
+  final_disposition: AssessmentResponse['final_disposition'];
   isFallbackApplied?: boolean;
   clinicalFrictionDetails?: Record<string, unknown>;
   medical_justification?: string;

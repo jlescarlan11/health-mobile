@@ -182,6 +182,10 @@ const buildClinicalHistoryPayload = (record: DB.ClinicalHistoryRecord) => {
     source: record.isGuest ? 'mobile-guest' : 'mobile-clinical-history',
   };
 
+  if (record.final_disposition) {
+    metadata.final_disposition = record.final_disposition;
+  }
+
   if (record.medical_justification) {
     metadata.medical_justification = record.medical_justification;
   }

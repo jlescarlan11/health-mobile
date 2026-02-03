@@ -35,6 +35,7 @@ export interface ClinicalHistoryRecord {
   timestamp: number;
   initial_symptoms: string;
   recommended_level: string;
+  final_disposition?: string;
   clinical_soap: string;
   medical_justification: string;
   profile_snapshot?: string;
@@ -95,14 +96,15 @@ export const initDatabase = async () => {
 
       // Create Clinical History Table
       await db.execAsync(`
-        CREATE TABLE IF NOT EXISTS clinical_history (
-          id TEXT PRIMARY KEY,
-          timestamp INTEGER,
-          initial_symptoms TEXT,
-          recommended_level TEXT,
-          clinical_soap TEXT,
-          medical_justification TEXT,
-          profile_snapshot TEXT,
+      CREATE TABLE IF NOT EXISTS clinical_history (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER,
+        initial_symptoms TEXT,
+        recommended_level TEXT,
+        final_disposition TEXT,
+        clinical_soap TEXT,
+        medical_justification TEXT,
+        profile_snapshot TEXT,
           synced INTEGER DEFAULT 0,
           synced_at INTEGER
         );
@@ -113,6 +115,7 @@ export const initDatabase = async () => {
         { name: 'timestamp', type: 'INTEGER' },
         { name: 'initial_symptoms', type: 'TEXT' },
         { name: 'recommended_level', type: 'TEXT' },
+        { name: 'final_disposition', type: 'TEXT' },
         { name: 'clinical_soap', type: 'TEXT' },
         { name: 'medical_justification', type: 'TEXT' },
         { name: 'profile_snapshot', type: 'TEXT' },
@@ -443,8 +446,8 @@ export const saveClinicalHistory = async (record: ClinicalHistoryRecord) => {
     await db.execAsync('BEGIN TRANSACTION');
 
     const statement = await db.prepareAsync(
-      `INSERT OR REPLACE INTO clinical_history (id, timestamp, initial_symptoms, recommended_level, clinical_soap, medical_justification, profile_snapshot, synced, synced_at) 
-       VALUES ($id, $timestamp, $initial_symptoms, $recommended_level, $clinical_soap, $medical_justification, $profile_snapshot, $synced, $synced_at)`,
+      `INSERT OR REPLACE INTO clinical_history (id, timestamp, initial_symptoms, recommended_level, final_disposition, clinical_soap, medical_justification, profile_snapshot, synced, synced_at) 
+       VALUES ($id, $timestamp, $initial_symptoms, $recommended_level, $final_disposition, $clinical_soap, $medical_justification, $profile_snapshot, $synced, $synced_at)`,
     );
 
     try {
@@ -453,6 +456,7 @@ export const saveClinicalHistory = async (record: ClinicalHistoryRecord) => {
         $timestamp: record.timestamp,
         $initial_symptoms: record.initial_symptoms,
         $recommended_level: record.recommended_level,
+        $final_disposition: record.final_disposition || null,
         $clinical_soap: record.clinical_soap,
         $medical_justification: record.medical_justification,
         $profile_snapshot: record.profile_snapshot || null,
